@@ -92,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
          ! videoscale \
          ! video/x-raw,width=640,height=360 \
          ! pngenc \
-         ! filesink location=/tmp/swaybeam_snap.png"
+         ! filesink location=/tmp/waycast_snap.png"
     );
     println!("Pipeline: {pipeline_str}");
 
@@ -147,8 +147,8 @@ async fn main() -> anyhow::Result<()> {
     }
     pipeline.set_state(gstreamer::State::Null)?;
 
-    match std::fs::metadata("/tmp/swaybeam_snap.png") {
-        Ok(m) => println!("Saved /tmp/swaybeam_snap.png ({} bytes)", m.len()),
+    match std::fs::metadata("/tmp/waycast_snap.png") {
+        Ok(m) => println!("Saved /tmp/waycast_snap.png ({} bytes)", m.len()),
         Err(e) => println!("No file: {e}"),
     }
     Ok(())

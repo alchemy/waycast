@@ -31,13 +31,13 @@ busctl --user call org.freedesktop.NetworkManager \
 echo
 
 # 3. Check the actual rust implementation of WFD IEs being used
-echo "[3 of 6] Verifying WFD IE implementation in swaybeam-net crate..."
+echo "[3 of 6] Verifying WFD IE implementation in waycast-net crate..."
 if [ -f "crates/net/src/lib.rs" ]; then
     echo "Found crate implementation - checking WFD IE construction:"
     grep -A 15 -B 5 "WFD.*Device.*Information\|wfd.*ies" crates/net/src/lib.rs
     grep -A 10 -B 10 "1C.*44" crates/net/src/lib.rs  # Looking for 7236 in hex (1C44)
 else
-    echo "Cannot locate swaybeam net crate implementation"
+    echo "Cannot locate waycast net crate implementation"
 fi
 echo
 
@@ -98,7 +98,7 @@ echo
 echo "=== FINAL STATUS ==="
 echo "✓ P2P Device '$p2p_device' exists"
 echo "✓ WFD IEs correctly implemented as 000006011C440000 (source, port 7236)"
-echo "✓ swaybeam-net crate properly handles P2P discovery"
+echo "✓ waycast-net crate properly handles P2P discovery"
 echo "✓ Currently in state: $(nmcli -t -f STATE device status | grep p2p | cut -d: -f2)"
 
 # Check if peer discovery would work (via NetworkManager status)

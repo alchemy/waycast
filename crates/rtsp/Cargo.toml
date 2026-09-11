@@ -1,5 +1,5 @@
 [package]
-name = "swaybeam-rtsp"
+name = "waycast-rtsp"
 version.workspace = true
 edition.workspace = true
 
@@ -14,5 +14,5 @@ parking_lot = { workspace = true }
 rand = { workspace = true }
 
 [[bin]]
-name = "swaybeam_rtsp_server"
+name = "waycast-rtsp-server"
 path = "src/bin/server.rs"

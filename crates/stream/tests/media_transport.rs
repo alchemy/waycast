@@ -1,6 +1,6 @@
 //! Cross-crate transport test using loopback and generated frames only.
-use swaybeam_rtsp::MediaTransport;
-use swaybeam_stream::{StreamConfig, StreamPipeline};
+use waycast_rtsp::MediaTransport;
+use waycast_stream::{StreamConfig, StreamPipeline};
 
 #[tokio::test]
 async fn negotiated_socket_is_used_by_stream_pipeline() {

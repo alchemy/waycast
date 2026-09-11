@@ -1,5 +1,5 @@
 use std::fmt;
-use swaybeam_capture::PipeWireStream;
+use waycast_capture::PipeWireStream;
 mod test_pattern;
 pub use test_pattern::{Frame, TestPatternConfig, TestPatternGenerator};
 

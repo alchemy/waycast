@@ -1,5 +1,5 @@
 [package]
-name = "swaybeam-stream"
+name = "waycast-stream"
 version.workspace = true
 edition.workspace = true
 
@@ -13,10 +13,10 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
-swaybeam-capture = { path = "../capture" }
+waycast-capture = { path = "../capture" }
 libc = "0.2"
 # GSocket adopts reserved RTP/RTCP descriptors without releasing their ports.
 gio = "0.22"
 
 [dev-dependencies]
-swaybeam-rtsp = { path = "../rtsp" }
+waycast-rtsp = { path = "../rtsp" }

@@ -1,5 +1,5 @@
 [package]
-name = "swaybeam-doctor"
+name = "waycast-doctor"
 version.workspace = true
 edition.workspace = true
 

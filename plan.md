@@ -68,7 +68,7 @@ Instead:
 ## Repository Layout
 
 ```text
-swaybeam/
+waycast/
   Cargo.toml
   crates/
     doctor/

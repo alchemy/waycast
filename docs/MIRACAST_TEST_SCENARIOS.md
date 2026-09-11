@@ -1,6 +1,6 @@
 # Miracast Real-World Test Scenarios
 
-This document provides comprehensive test scenarios and procedures for testing swaybeam with real Miracast-compatible displays (TVs, monitors, projectors).
+This document provides comprehensive test scenarios and procedures for testing waycast with real Miracast-compatible displays (TVs, monitors, projectors).
 
 ## Table of Contents
 
@@ -28,10 +28,10 @@ Before testing with real hardware, verify your system meets all requirements:
 
 ```bash
 # Run doctor checks
-swaybeam-doctor
+waycast-doctor
 
 # Or using cargo
-cargo run -p swaybeam-doctor
+cargo run -p waycast-doctor
 ```
 
 ### Required Components
@@ -58,10 +58,10 @@ cargo run -p swaybeam-doctor
 export RUST_LOG=debug
 
 # Set interface (adjust based on your system)
-export SWAYBEAM_INTERFACE=wlan0
+export WAYCAST_INTERFACE=wlan0
 
 # Increase discovery timeout for slower TVs
-export SWAYBEAM_DISCOVERY_TIMEOUT=30
+export WAYCAST_DISCOVERY_TIMEOUT=30
 ```
 
 ---
@@ -82,10 +82,10 @@ export SWAYBEAM_DISCOVERY_TIMEOUT=30
 | Step | Action | Expected Result | Timeout |
 |------|--------|-----------------|---------|
 | 1 | Enable Miracast on TV | TV shows "Waiting for connection" or similar | - |
-| 2 | Run `swaybeam-doctor` | All checks pass | 10s |
-| 3 | Run discovery: `swaybeam-cli discover` | Lists at least one sink with name and address | 30s |
+| 2 | Run `waycast-doctor` | All checks pass | 10s |
+| 3 | Run discovery: `waycast-cli discover` | Lists at least one sink with name and address | 30s |
 | 4 | Verify discovered sink info | Sink name matches TV, address format valid | - |
-| 5 | Initiate connection: `swaybeam-cli connect <sink>` | Connection request sent, TV prompts for acceptance | 30s |
+| 5 | Initiate connection: `waycast-cli connect <sink>` | Connection request sent, TV prompts for acceptance | 30s |
 | 6 | Accept connection on TV | TV shows "Connected" or similar | 10s |
 | 7 | Verify P2P group formed | `nmcli device status` shows p2p device | 5s |
 | 8 | Check IP assignment | IP address assigned to P2P interface | 5s |
@@ -206,7 +206,7 @@ tcpdump -i p2p-wlan0-0 -w rtsp.pcap port 7236
 wireshark rtsp.pcap
 
 # Monitor RTSP server logs
-RUST_LOG=swaybeam_rtsp=debug cargo run -p swaybeam-rtsp
+RUST_LOG=waycast_rtsp=debug cargo run -p waycast-rtsp
 
 # Test RTSP manually
 nc <tv-ip> 7236
@@ -269,7 +269,7 @@ Example: 0x001F = 00011111
 
 ```rust
 // Test codec negotiation
-use swaybeam_rtsp::WfdCapabilities;
+use waycast_rtsp::WfdCapabilities;
 
 let mut caps = WfdCapabilities::new();
 
@@ -302,7 +302,7 @@ gst-launch-1.0 videotestsrc ! x264enc ! h264parse ! fakesink
 # Test H.265 pipeline
 gst-launch-1.0 videotestsrc ! x265enc ! h265parse ! fakesink
 
-# Force specific codec in swaybeam
+# Force specific codec in waycast
 # (modify DaemonConfig or StreamConfig)
 ```
 
@@ -441,13 +441,13 @@ gst-launch-1.0 ... ! fakesink enable-last-sample=true
 
 ```bash
 # Monitor RTSP session state
-RUST_LOG=swaybeam_rtsp=trace cargo run -p swaybeam-daemon
+RUST_LOG=waycast_rtsp=trace cargo run -p waycast-daemon
 
 # Check RTP stream
 tcpdump -i p2p-wlan0-0 udp port 5004
 
 # Monitor GStreamer pipeline
-gst-debug 3 cargo run -p swaybeam-stream
+gst-debug 3 cargo run -p waycast-stream
 
 # Test UDP connectivity
 nc -u <tv-ip> 5004
@@ -601,15 +601,15 @@ match self.run_session().await {
 nmcli device disconnect p2p-wlan0-0
 
 # Monitor daemon state
-watch -n 1 'swaybeam-cli status'
+watch -n 1 'waycast-cli status'
 
 # Check cleanup
-ps aux | grep swaybeam
+ps aux | grep waycast
 lsof -i :5004
 
 # Force recovery
-swaybeam-cli disconnect
-swaybeam-cli discover
+waycast-cli disconnect
+waycast-cli discover
 ```
 
 ---
@@ -623,7 +623,7 @@ swaybeam-cli discover
 | Step | Action | Expected Result | RTSP Message |
 |------|--------|-----------------|--------------|
 | 1 | Streaming active | Video displayed on TV | - |
-| 2 | Initiate disconnect: `swaybeam-cli disconnect` | Disconnect command issued | - |
+| 2 | Initiate disconnect: `waycast-cli disconnect` | Disconnect command issued | - |
 | 3 | Stop capture | Capture deactivates | - |
 | 4 | Stop stream pipeline | Pipeline to Null state | - |
 | 5 | Send TEARDOWN to TV | RTSP teardown message | `TEARDOWN rtsp://... RTSP/1.0` |
@@ -669,7 +669,7 @@ swaybeam-cli discover
 
 ```bash
 # Monitor disconnect flow
-RUST_LOG=swaybeam_daemon=debug swaybeam-cli disconnect
+RUST_LOG=waycast_daemon=debug waycast-cli disconnect
 
 # Verify P2P cleanup
 nmcli device wifi-p2p list
@@ -680,7 +680,7 @@ lsof -i :7236
 lsof -i :5004
 
 # Verify session removed
-swaybeam-cli status
+waycast-cli status
 ```
 
 ---
@@ -828,7 +828,7 @@ swaybeam-cli status
 
 ```
 System Environment:
-[ ] Run swaybeam-doctor - all checks pass
+[ ] Run waycast-doctor - all checks pass
 [ ] WiFi adapter supports P2P (iw phy phy0 info | grep P2P)
 [ ] NetworkManager running (systemctl status NetworkManager)
 [ ] PipeWire running (systemctl --user status pipewire)
@@ -854,13 +854,13 @@ Network Setup:
 
 ```
 Discovery Phase:
-[ ] swaybeam-cli discover lists at least one sink
+[ ] waycast-cli discover lists at least one sink
 [ ] Sink name matches TV brand/model
 [ ] Sink address is valid MAC format
 [ ] Discovery completes within 30 seconds
 
 Connection Phase:
-[ ] swaybeam-cli connect initiates connection
+[ ] waycast-cli connect initiates connection
 [ ] TV prompts for acceptance (if required)
 [ ] Connection accepted within 15 seconds
 [ ] P2P group formed (nmcli device status)
@@ -925,7 +925,7 @@ Error Recovery Test:
 
 ```
 Disconnection:
-[ ] swaybeam-cli disconnect works
+[ ] waycast-cli disconnect works
 [ ] TEARDOWN sent and acknowledged
 [ ] Pipeline stops cleanly
 [ ] Capture stops cleanly
@@ -985,7 +985,7 @@ wpa_cli p2p_peer
 ```bash
 tcpdump -i p2p-wlan0-0 port 7236 -w rtsp.pcap
 wireshark rtsp.pcap
-RUST_LOG=swaybeam_rtsp=trace cargo run
+RUST_LOG=waycast_rtsp=trace cargo run
 ```
 
 ### Streaming Issues
@@ -1227,7 +1227,7 @@ nmcli device disconnect p2p-wlan0-0
 
 - **Version**: 1.0.0
 - **Last Updated**: 2026-04-02
-- **Compatible with**: swaybeam v0.1.0+
+- **Compatible with**: waycast v0.1.0+
 
 ---
 

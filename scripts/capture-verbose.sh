@@ -5,7 +5,7 @@
 set -e
 
 IFACE="${1:-p2p-wlp2s0-7}"
-OUTPUT="${2:-swaybeam-verbose.pcap}"
+OUTPUT="${2:-waycast-verbose.pcap}"
 
 echo "Verbose capture on $IFACE..."
 echo "Including full hex dump for TCP traffic"

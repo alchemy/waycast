@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@opencode-ai/swaybeam",
+      "name": "@opencode-ai/waycast",
       "dependencies": {
         "@opencode-ai/plugin": "1.3.13",
       },

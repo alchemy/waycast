@@ -1,6 +1,6 @@
 # Wi-Fi Display (WFD) / Miracast Specification Gap Analysis
 
-This document provides a comprehensive analysis of the Wi-Fi Display specification requirements and the current implementation status in swaybeam.
+This document provides a comprehensive analysis of the Wi-Fi Display specification requirements and the current implementation status in waycast.
 
 ## Executive Summary
 
@@ -812,7 +812,7 @@ Fields:
 
 ## Conclusion
 
-The swaybeam project has a solid foundation for WFD/Miracast implementation with:
+The waycast project has a solid foundation for WFD/Miracast implementation with:
 - Basic RTSP protocol handling ✓
 - WFD parameter storage ✓
 - Codec selection logic ✓

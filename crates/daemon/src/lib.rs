@@ -1,8 +1,8 @@
 use std::io::ErrorKind;
 use std::sync::Arc;
 use std::time::Duration;
-use swaybeam_audio::VirtualAudioSink;
-use swaybeam_external::{ExternalResolution, VirtualOutput};
+use waycast_audio::VirtualAudioSink;
+use waycast_external::{ExternalResolution, VirtualOutput};
 
 use aes::Aes128;
 use ctr::cipher::{KeyIvInit, StreamCipher};
@@ -16,11 +16,11 @@ use tokio::net::{TcpSocket, TcpStream};
 use tokio::sync::{mpsc, RwLock};
 use tracing::{debug, error, info, warn};
 
-use swaybeam_capture::{Capture, CaptureConfig};
-use swaybeam_doctor::{check_all, Report as DoctorReport};
-use swaybeam_net::{NetError, P2pConfig, P2pConnection, P2pManager, Sink};
-use swaybeam_rtsp::{parse_wfd_client_rtp_port, NegotiatedCodec, RtspClient, RtspServer};
-use swaybeam_stream::{AudioCodec, StreamConfig, StreamPipeline, VideoCodec};
+use waycast_capture::{Capture, CaptureConfig};
+use waycast_doctor::{check_all, Report as DoctorReport};
+use waycast_net::{NetError, P2pConfig, P2pConnection, P2pManager, Sink};
+use waycast_rtsp::{parse_wfd_client_rtp_port, NegotiatedCodec, RtspClient, RtspServer};
+use waycast_stream::{AudioCodec, StreamConfig, StreamPipeline, VideoCodec};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DaemonState {
@@ -90,8 +90,8 @@ pub struct Daemon {
     /// The single mode committed to in M4. The pipeline must produce exactly
     /// this geometry: M4 is a promise, and encoding something else makes the
     /// sink decode a stream whose dimensions it was told to expect elsewhere.
-    selected_video_mode: Option<swaybeam_rtsp::SelectedVideoMode>,
-    media_transport: Option<swaybeam_rtsp::MediaTransport>,
+    selected_video_mode: Option<waycast_rtsp::SelectedVideoMode>,
+    media_transport: Option<waycast_rtsp::MediaTransport>,
 }
 
 #[derive(Debug)]
@@ -317,10 +317,10 @@ impl Daemon {
         // the last one ended. Best-effort: a failure here shouldn't block
         // starting a new session, it just means whatever didn't get
         // cleaned stays around for the next attempt too.
-        if let Err(e) = swaybeam_external::cleanup_stale() {
+        if let Err(e) = waycast_external::cleanup_stale() {
             tracing::warn!("Stale virtual-output cleanup failed: {}", e);
         }
-        if let Err(e) = swaybeam_audio::cleanup_stale() {
+        if let Err(e) = waycast_audio::cleanup_stale() {
             tracing::warn!("Stale virtual-audio-sink cleanup failed: {}", e);
         }
 
@@ -464,7 +464,7 @@ impl Daemon {
 
         let config = P2pConfig {
             interface_name: self.config.interface.clone(),
-            group_name: "swaybeam".to_string(),
+            group_name: "waycast".to_string(),
         };
 
         let manager = P2pManager::new(config).await?;
@@ -484,7 +484,7 @@ impl Daemon {
 
         let config = P2pConfig {
             interface_name: self.config.interface.clone(),
-            group_name: "swaybeam".to_string(),
+            group_name: "waycast".to_string(),
         };
 
         let manager = P2pManager::new(config).await?;
@@ -599,7 +599,7 @@ impl Daemon {
             self.hdcp_stream = None;
             let config = P2pConfig {
                 interface_name: self.config.interface.clone(),
-                group_name: "swaybeam".to_string(),
+                group_name: "waycast".to_string(),
             };
 
             let manager = P2pManager::new(config).await?;
@@ -1850,7 +1850,7 @@ impl Daemon {
         // here, so a selection the pipeline can't honour would just be a
         // different way of lying to the sink.
         let selected = sink_caps.get("wfd_video_formats").and_then(|formats| {
-            swaybeam_rtsp::WfdCapabilities::select_video_mode(
+            waycast_rtsp::WfdCapabilities::select_video_mode(
                 formats,
                 self.config.video_width,
                 self.config.video_height,
@@ -1887,7 +1887,7 @@ impl Daemon {
                     "Could not select a video mode from the sink's wfd_video_formats; \
                      falling back to our own capability string, which the sink may not honour"
                 );
-                swaybeam_rtsp::WfdCapabilities::build_video_formats()
+                waycast_rtsp::WfdCapabilities::build_video_formats()
             }
         };
 
@@ -1897,7 +1897,7 @@ impl Daemon {
         source_caps.insert("wfd_video_formats".to_string(), selected_video_format);
         source_caps.insert(
             "wfd_audio_codecs".to_string(),
-            swaybeam_rtsp::WfdCapabilities::build_audio_codecs(),
+            waycast_rtsp::WfdCapabilities::build_audio_codecs(),
         );
         source_caps.insert("wfd_uibc_capability".to_string(), "none".to_string());
         source_caps.insert(
@@ -1937,7 +1937,7 @@ impl Daemon {
         // a CEA bitmap of 00000200, a latency field, a max-hres of 0200 --
         // so a sink advertising no HEVC at all could still be sent an H.265
         // stream, and one that M4 had just promised H.264 for.
-        let mut caps = swaybeam_rtsp::WfdCapabilities::new();
+        let mut caps = waycast_rtsp::WfdCapabilities::new();
         caps.video_formats = sink_caps.get("wfd_video_formats").cloned();
         let negotiated = caps.negotiate_video_codec();
 
@@ -1972,8 +1972,8 @@ impl Daemon {
         }
     }
 
-    fn is_connection_refused(err: &swaybeam_rtsp::RtspError) -> bool {
-        matches!(err, swaybeam_rtsp::RtspError::Io(io_err) if io_err.kind() == std::io::ErrorKind::ConnectionRefused)
+    fn is_connection_refused(err: &waycast_rtsp::RtspError) -> bool {
+        matches!(err, waycast_rtsp::RtspError::Io(io_err) if io_err.kind() == std::io::ErrorKind::ConnectionRefused)
     }
 
     async fn start_negotiated_stream(

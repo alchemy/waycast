@@ -5,7 +5,7 @@ description: Prepare and publish a new release. Use when the user asks to releas
 
 ## Purpose
 
-Release a new version of swaybeam using the release script and CI pipeline.
+Release a new version of waycast using the release script and CI pipeline.
 
 ## When to use
 

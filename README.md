@@ -1,15 +1,21 @@
-# Swaybeam
+# Waycast
 
 **Miracast source for wlroots-based compositors**
 
 Stream your screen wirelessly to Miracast-compatible TVs and displays from Sway, River, Labwc, Hyprland, and other wlroots-based Wayland compositors.
 
+Waycast began as a fork of [swaybeam](https://github.com/forkline/swaybeam) by
+Pando85, and keeps its MIT licence and copyright. It adds a Hyprland backend
+and extend-desktop support, and reworks the Wi-Fi Display negotiation after
+testing against real sinks. The name changed because "sway" no longer
+described it and the two projects have diverged.
+
 ## Quick Start
 
 ```bash
 # Clone repository
-git clone https://github.com/forkline/swaybeam.git
-cd swaybeam
+git clone https://github.com/alchemy/waycast.git
+cd waycast
 
 # Build
 just build
@@ -64,8 +70,8 @@ sudo pacman -S --needed \
     xdg-desktop-portal xdg-desktop-portal-wlr
 
 # Build and install
-git clone https://github.com/forkline/swaybeam.git
-cd swaybeam
+git clone https://github.com/alchemy/waycast.git
+cd waycast
 just build
 just install
 ```
@@ -79,8 +85,8 @@ sudo apt install \
     pipewire wireplumber network-manager wpa_supplicant \
     xdg-desktop-portal-wlr
 
-git clone https://github.com/forkline/swaybeam.git
-cd swaybeam
+git clone https://github.com/alchemy/waycast.git
+cd waycast
 just build
 ```
 
@@ -90,16 +96,16 @@ Build directly without installing system dependencies:
 
 ```bash
 # Build the production binary
-nix build github:forkline/swaybeam
+nix build github:alchemy/waycast
 
 # Run directly (no install needed)
-nix run github:forkline/swaybeam -- doctor
+nix run github:alchemy/waycast -- doctor
 
 # Or from a local checkout
-git clone https://github.com/forkline/swaybeam.git
-cd swaybeam
+git clone https://github.com/alchemy/waycast.git
+cd waycast
 nix build .
-./result/bin/swaybeam doctor
+./result/bin/waycast doctor
 
 # Development shell (full dev environment)
 nix develop
@@ -113,7 +119,7 @@ The production binary is wrapped with `GST_PLUGIN_SYSTEM_PATH_1_0` so GStreamer 
 ### Check System Readiness
 
 ```bash
-swaybeam doctor
+waycast doctor
 ```
 
 Expected output when ready:
@@ -129,23 +135,23 @@ Expected output when ready:
 ### Discover Miracast Displays
 
 ```bash
-swaybeam discover --timeout 10
+waycast discover --timeout 10
 ```
 
 ### Connect to a Display
 
 ```bash
-swaybeam connect --sink "Living Room TV"
+waycast connect --sink "Living Room TV"
 ```
 
 ### Start Streaming
 
 ```bash
 # 1080p (default)
-swaybeam stream
+waycast stream
 
 # Ask for something smaller
-swaybeam stream --width 1280 --height 720 --framerate 30
+waycast stream --width 1280 --height 720 --framerate 30
 ```
 
 **Resolution is negotiated, not chosen.** Classic Miracast/WFD has no 4K
@@ -161,7 +167,7 @@ one geometry and sending another.
 ### Extend the Desktop Instead of Mirroring
 
 ```bash
-swaybeam daemon --sink <MAC> --extend
+waycast daemon --sink <MAC> --extend
 ```
 
 `--extend` creates a headless output and streams *that*, so the compositor
@@ -172,26 +178,26 @@ backend uses its own equivalents.
 
 Two things are worth knowing about this mode:
 
-- **The portal has to pick the right output.** swaybeam installs a one-shot
+- **The portal has to pick the right output.** waycast installs a one-shot
   picker override in `~/.config/hypr/xdph.conf` so its own capture request
   selects the headless output without a dialog, then removes it. The override
   is armed for exactly one request.
 - **An idle virtual output produces no frames.** wlroots compositors emit a
   screencopy frame only when an output is damaged, and a newly created output
-  with nothing on it never is. swaybeam nudges the compositor to repaint once
+  with nothing on it never is. waycast nudges the compositor to repaint once
   streaming starts, and repeats the most recent frame in the pipeline so the
   sink keeps receiving a stream when the desktop is still.
 
 ### Disconnect
 
 ```bash
-swaybeam disconnect
+waycast disconnect
 ```
 
 ### Run Full Daemon
 
 ```bash
-swaybeam daemon
+waycast daemon
 ```
 
 The daemon handles the full Miracast session automatically:
@@ -205,18 +211,18 @@ The daemon handles the full Miracast session automatically:
 ## CLI Commands
 
 ```
-swaybeam doctor              # Check system requirements
-swaybeam discover [-t N]      # Discover Miracast displays
-swaybeam connect -s <name>   # Connect to a display
-swaybeam stream [options]    # Start streaming
-swaybeam disconnect          # Disconnect from display
-swaybeam daemon              # Run full session
-swaybeam status              # Show connection status
+waycast doctor              # Check system requirements
+waycast discover [-t N]      # Discover Miracast displays
+waycast connect -s <name>   # Connect to a display
+waycast stream [options]    # Start streaming
+waycast disconnect          # Disconnect from display
+waycast daemon              # Run full session
+waycast status              # Show connection status
 ```
 
 ## Video Codecs
 
-swaybeam supports multiple video codecs with both software and hardware encoding:
+waycast supports multiple video codecs with both software and hardware encoding:
 
 ### Supported Codecs
 
@@ -234,17 +240,17 @@ H.265 and AV1 exist in the encoder layer but are not reachable from the CLI:
 
 ```bash
 # Auto-select (default) - hardware H.264 when available, with Samsung compatibility fallback
-swaybeam daemon --sink "TV" --client
+waycast daemon --sink "TV" --client
 
 # Force H.264 with hardware encoding
-swaybeam daemon --sink "TV" --client --codec h264
+waycast daemon --sink "TV" --client --codec h264
 
 # Force H.264 with software encoding (most compatible)
-swaybeam daemon --sink "TV" --client --codec h264-sw
+waycast daemon --sink "TV" --client --codec h264-sw
 ```
 
 > **Auto-selection always lands on H.264 today.** HEVC is advertised by sinks
-> in WFD 2.0's `wfd2_video_formats`, which swaybeam does not request, so
+> in WFD 2.0's `wfd2_video_formats`, which waycast does not request, so
 > nothing in a normal capability exchange makes H.265 negotiable. Enabling it
 > means requesting and parsing that parameter, not inspecting
 > `wfd_video_formats` harder -- an earlier version appeared to auto-select
@@ -262,7 +268,7 @@ system clock so output pacing continues independently of capture updates.
 An explicit `--codec h264` overrides the conservative software choice.
 
 ```bash
-swaybeam --interface wlp0s20f3 daemon --sink "[TV] Samsung 8 Series (55)"
+waycast --interface wlp0s20f3 daemon --sink "[TV] Samsung 8 Series (55)"
 ```
 
 Use the default RTSP role: the TV connects to the laptop. `--client` controls
@@ -285,7 +291,7 @@ connection timeout.
 Local validation (no TV, discovery, or portal requests):
 
 ```bash
-cargo test -p swaybeam-rtsp -p swaybeam-stream --features swaybeam-capture/real_portal
+cargo test -p waycast-rtsp -p waycast-stream --features waycast-capture/real_portal
 ```
 
 Live testing on 2026-09-10 exercised the updated RTP/RTCP path, but visual
@@ -317,15 +323,15 @@ For the stock Arch Linux systemd service, install the supplied P2P config
 and service drop-in:
 
 ```bash
-sudo install -D -m 0644 contrib/wpa_supplicant/swaybeam-p2p.conf /etc/wpa_supplicant/swaybeam-p2p.conf
-sudo install -D -m 0644 contrib/systemd/wpa_supplicant.service.d/50-swaybeam-p2p.conf /etc/systemd/system/wpa_supplicant.service.d/50-swaybeam-p2p.conf
+sudo install -D -m 0644 contrib/wpa_supplicant/waycast-p2p.conf /etc/wpa_supplicant/waycast-p2p.conf
+sudo install -D -m 0644 contrib/systemd/wpa_supplicant.service.d/50-waycast-p2p.conf /etc/systemd/system/wpa_supplicant.service.d/50-waycast-p2p.conf
 sudo systemctl daemon-reload
 sudo systemctl restart wpa_supplicant
 ```
 
 Restarting wpa_supplicant briefly interrupts Wi-Fi. On other distributions or
 customized services, preserve the existing `ExecStart` command and append
-`-m /etc/wpa_supplicant/swaybeam-p2p.conf` instead of copying the example
+`-m /etc/wpa_supplicant/waycast-p2p.conf` instead of copying the example
 drop-in verbatim. If a P2P config is already supplied with `-m`, set
 `device_type=1-0050F204-1` in that file instead. No credentials belong in the
 supplied P2P identity file. The setting is loaded whenever the P2P device is
@@ -362,7 +368,7 @@ gst-inspect-1.0 vah265enc
 gst-inspect-1.0 vah264enc
 ```
 
-If these return "No such element", hardware encoding is not available and swaybeam will fall back to software encoding.
+If these return "No such element", hardware encoding is not available and waycast will fall back to software encoding.
 
 > **Nix users**: Run `nix develop` first — `gst-inspect-1.0` needs the dev shell's environment to find plugins outside the wrapped binary.
 
@@ -371,7 +377,7 @@ If these return "No such element", hardware encoding is not available and swaybe
 Audio is enabled by default, capturing from the default audio output monitor. To disable:
 
 ```bash
-swaybeam daemon --sink "TV" --client --no-audio
+waycast daemon --sink "TV" --client --no-audio
 ```
 
 ## Development
@@ -401,7 +407,7 @@ See `just --list` for all available commands.
 Install a WiFi adapter that supports P2P (Wi-Fi Direct). Most modern USB adapters work.
 
 ### "Not running a wlroots compositor"
-Swaybeam requires a wlroots-based Wayland compositor. Run under Sway, River, Labwc, Hyprland, or other wlroots compositors.
+Waycast requires a wlroots-based Wayland compositor. Run under Sway, River, Labwc, Hyprland, or other wlroots compositors.
 
 ### "Missing H.264 plugins"
 Install GStreamer plugins:
@@ -415,8 +421,8 @@ sudo apt install gstreamer1.0-plugins-ugly
 
 ### "NetworkManager error: No IP address assigned"
 
-The P2P group formed with swaybeam as the **group owner**, which is the side
-that hands addresses out rather than receiving one. swaybeam reconfigures
+The P2P group formed with waycast as the **group owner**, which is the side
+that hands addresses out rather than receiving one. waycast reconfigures
 NetworkManager to `ipv4.method=shared` when this happens, so it assigns its own
 address and serves DHCP to the sink -- but that only works if inbound DHCP is
 permitted on the p2p interface. See the firewall note above.
@@ -438,7 +444,7 @@ journalctl -u wpa_supplicant --since '2 min ago' | grep P2P-GROUP-STARTED
 
 ### Sink connects, then drops after a few seconds
 
-Almost always host configuration rather than swaybeam. Miracast has the *sink*
+Almost always host configuration rather than waycast. Miracast has the *sink*
 open a TCP connection back to the source, so port 7236 has to be reachable and
 the Wi-Fi Direct interface must not be filtered. Both are blocked by default on
 a typical Arch install, and the failure is silent -- the TV simply never gets a
@@ -458,7 +464,7 @@ sudo nft list ruleset | grep -E 'chain input|dport|policy'
 #   iifname "p2p-*" udp dport 67 accept
 #
 # The second is needed because the P2P role is not ours to choose. When the
-# negotiation makes swaybeam the group owner it becomes the DHCP *server*
+# negotiation makes waycast the group owner it becomes the DHCP *server*
 # for the sink, and the sink's DHCPDISCOVER arrives on the p2p interface.
 # Dropped, dnsmasq offers leases nobody asks for and RTSP times out waiting
 # for a sink that has no address. Interface-scoped, not subnet-scoped:
@@ -504,7 +510,7 @@ exec_always --no-startup-id systemctl --user restart xdg-desktop-portal.service 
 
 ```
 ┌─────────────────────────────────────────────┐
-│                  CLI (swaybeam)              │
+│                  CLI (waycast)              │
 └──────────────────────┬──────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────┐

@@ -4,7 +4,7 @@
 #[cfg(test)]
 mod rtsp_protocol_tests {
     use std::collections::HashMap;
-    use swaybeam_rtsp::{NegotiatedCodec, RtspMessage, RtspSession, SessionState, WfdCapabilities};
+    use waycast_rtsp::{NegotiatedCodec, RtspMessage, RtspSession, SessionState, WfdCapabilities};
 
     /// Test all RTSP message types
     #[test]

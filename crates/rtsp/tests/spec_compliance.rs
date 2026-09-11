@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod wfd_spec_compliance {
-    use swaybeam_rtsp::WfdCapabilities;
+    use waycast_rtsp::WfdCapabilities;
 
     /// Test WFD 1.0 mandatory parameters
     #[test]

@@ -1,5 +1,5 @@
 {
-  description = "swaybeam - Miracast source for wlroots-based compositors";
+  description = "waycast - Miracast source for wlroots-based compositors";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -39,7 +39,7 @@
         };
 
         commonArgs = {
-          pname = "swaybeam";
+          pname = "waycast";
           inherit src cargoVendorDir;
           doCheck = false;
           nativeBuildInputs = with pkgs; [ pkg-config makeWrapper ];
@@ -52,14 +52,14 @@
 
         cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
-        swaybeam = craneLib.buildPackage (commonArgs // {
+        waycast = craneLib.buildPackage (commonArgs // {
           inherit cargoArtifacts;
           doCheck = false;
           postInstall = let
             gstPluginPath = pkgs.lib.makeSearchPath "lib/gstreamer-1.0" gstRuntimePlugins;
             gstBin = "${pkgs.gst_all_1.gstreamer}/bin";
           in ''
-            wrapProgram $out/bin/swaybeam \
+            wrapProgram $out/bin/waycast \
               --set GST_PLUGIN_SYSTEM_PATH_1_0 "${gstPluginPath}" \
               --prefix PATH : "${gstBin}"
             wrapProgram $out/bin/validate-rtsp \
@@ -74,14 +74,14 @@
           '';
           meta = with pkgs.lib; {
             description = "Miracast source for wlroots-based compositors";
-            homepage = "https://github.com/forkline/swaybeam";
+            homepage = "https://github.com/alchemy/waycast";
             license = licenses.mit;
             platforms = platforms.linux;
           };
         });
       in {
-        packages.default = swaybeam;
-        packages.swaybeam = swaybeam;
+        packages.default = waycast;
+        packages.waycast = waycast;
         devShells.default = craneLib.devShell {
           packages = with pkgs; [
             rustToolchain

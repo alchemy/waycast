@@ -24,7 +24,7 @@ pub enum NegotiatedCodec {
 /// # Examples
 ///
 /// ```
-/// use swaybeam_rtsp::WfdCapabilities;
+/// use waycast_rtsp::WfdCapabilities;
 ///
 /// let mut caps = WfdCapabilities::new();
 /// caps.set_parameter("wfd_video_formats", "1 0 00 04 0001F437FDE63F490000000000000000").unwrap();
@@ -65,7 +65,7 @@ impl WfdCapabilities {
     /// # Examples
     ///
     /// ```
-    /// use swaybeam_rtsp::WfdCapabilities;
+    /// use waycast_rtsp::WfdCapabilities;
     ///
     /// let caps = WfdCapabilities::new();
     /// assert!(caps.video_formats.is_none());
@@ -101,7 +101,7 @@ impl WfdCapabilities {
     /// # Examples
     ///
     /// ```
-    /// use swaybeam_rtsp::WfdCapabilities;
+    /// use waycast_rtsp::WfdCapabilities;
     ///
     /// let mut caps = WfdCapabilities::new();
     /// caps.set_parameter("wfd_video_formats", "test_format").unwrap();
@@ -146,7 +146,7 @@ impl WfdCapabilities {
     /// # Examples
     ///
     /// ```
-    /// use swaybeam_rtsp::WfdCapabilities;
+    /// use waycast_rtsp::WfdCapabilities;
     ///
     /// let mut caps = WfdCapabilities::new();
     /// caps.video_formats = Some("test_format".to_string());
@@ -543,7 +543,7 @@ pub fn parse_wfd_content_protection_port(value: &str) -> Option<u16> {
 /// # Examples
 ///
 /// ```
-/// use swaybeam_rtsp::SessionState;
+/// use waycast_rtsp::SessionState;
 ///
 /// let state = SessionState::Init;
 /// match state {
@@ -572,7 +572,7 @@ pub enum SessionState {
 /// # Examples
 ///
 /// ```
-/// use swaybeam_rtsp::{RtspSession, WfdCapabilities, SessionState};
+/// use waycast_rtsp::{RtspSession, WfdCapabilities, SessionState};
 ///
 /// let session = RtspSession::new("session_123".to_string());
 /// assert_eq!(session.session_id, "session_123");
@@ -610,7 +610,7 @@ impl RtspSession {
     /// # Examples
     ///
     /// ```rust
-    /// use swaybeam_rtsp::RtspSession;
+    /// use waycast_rtsp::RtspSession;
     ///
     /// let session = RtspSession::new("test_session".to_string());
     /// assert_eq!(session.session_id, "test_session");
@@ -638,7 +638,7 @@ impl RtspSession {
     /// # Examples
     ///
     /// ```rust
-    /// use swaybeam_rtsp::{RtspSession, SessionState};
+    /// use waycast_rtsp::{RtspSession, SessionState};
     ///
     /// let mut session = RtspSession::new("test_session".to_string());
     /// session.transition_to(SessionState::Play);
@@ -661,7 +661,7 @@ impl RtspSession {
     /// # Examples
     ///
     /// ```rust
-    /// use swaybeam_rtsp::RtspSession;
+    /// use waycast_rtsp::RtspSession;
     ///
     /// let mut session = RtspSession::new("test_session".to_string());
     /// let response = session.process_options().unwrap();
@@ -881,7 +881,7 @@ impl RtspSession {
 /// # Examples
 ///
 /// ```
-/// # use swaybeam_rtsp::RtspError;
+/// # use waycast_rtsp::RtspError;
 /// use std::io;
 ///
 /// let io_error = io::Error::new(io::ErrorKind::ConnectionAborted, "Connection lost");
@@ -946,7 +946,7 @@ pub enum RtspError {
 /// # Examples
 ///
 /// ```rust
-/// # use swaybeam_rtsp::{RtspMessage, SessionState};
+/// # use waycast_rtsp::{RtspMessage, SessionState};
 /// let msg = RtspMessage::Options { cseq: 1 };
 ///
 /// match msg {
@@ -999,7 +999,7 @@ impl RtspMessage {
     /// # Examples
     ///
     /// ```rust
-    /// # use swaybeam_rtsp::RtspMessage;
+    /// # use waycast_rtsp::RtspMessage;
     ///
     /// let data = "OPTIONS * RTSP/1.0\r\nCSeq: 1\r\n\r\n";
     /// let msg = RtspMessage::parse(data).unwrap();
@@ -1121,7 +1121,7 @@ fn parse_header(lines: &[&str], header: &str) -> Option<String> {
 /// Basic usage:
 ///
 /// ```no_run
-/// # use swaybeam_rtsp::RtspServer;
+/// # use waycast_rtsp::RtspServer;
 ///
 /// #[tokio::main]
 /// async fn main() {
@@ -1700,7 +1700,7 @@ impl RtspClient {
     pub async fn send_options(&mut self) -> Result<String, RtspError> {
         self.cseq += 1;
         let request = format!(
-            "OPTIONS * RTSP/1.0\r\nCSeq: {}\r\nRequire: org.wfa.wfd1.0\r\nUser-Agent: swaybeam/1.0\r\n\r\n",
+            "OPTIONS * RTSP/1.0\r\nCSeq: {}\r\nRequire: org.wfa.wfd1.0\r\nUser-Agent: waycast/1.0\r\n\r\n",
             self.cseq
         );
 
@@ -2020,7 +2020,7 @@ impl RtspServer {
     /// # Examples
     ///
     /// ```rust
-    /// # use swaybeam_rtsp::RtspServer;
+    /// # use waycast_rtsp::RtspServer;
     /// let server = RtspServer::new("127.0.0.1:7236".to_string());
     /// // Server is ready to accept connections
     /// ```
@@ -2050,7 +2050,7 @@ impl RtspServer {
     /// # Examples
     ///
     /// ```no_run
-    /// # use swaybeam_rtsp::RtspServer;
+    /// # use waycast_rtsp::RtspServer;
     /// # use std::time::Duration;
     /// # #[tokio::main]
     /// # async fn main() {
@@ -2087,7 +2087,7 @@ impl RtspServer {
     /// # Examples
     ///
     /// ```no_run
-    /// # use swaybeam_rtsp::RtspServer;
+    /// # use waycast_rtsp::RtspServer;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -2143,7 +2143,7 @@ impl RtspServer {
     /// # Examples
     ///
     /// ```rust
-    /// # use swaybeam_rtsp::{RtspServer, RtspSession};
+    /// # use waycast_rtsp::{RtspServer, RtspSession};
     ///
     /// let server = RtspServer::new("127.0.0.1:0".to_string());
     /// let session = server.create_session("test_123".to_string());
@@ -2167,7 +2167,7 @@ impl RtspServer {
     /// # Examples
     ///
     /// ```rust
-    /// # use swaybeam_rtsp::RtspServer;
+    /// # use waycast_rtsp::RtspServer;
     ///
     /// let server = RtspServer::new("127.0.0.1:0".to_string());
     /// let session = server.create_session("new_session_456".to_string());
@@ -2194,7 +2194,7 @@ impl RtspServer {
     /// # Examples
     ///
     /// ```rust
-    /// # use swaybeam_rtsp::RtspServer;
+    /// # use waycast_rtsp::RtspServer;
     ///
     /// let server = RtspServer::new("127.0.0.1:0".to_string());
     /// server.create_session("temp_session".to_string());

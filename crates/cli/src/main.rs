@@ -7,13 +7,13 @@ use tabled::{Table, Tabled};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
-#[command(name = "swaybeam")]
+#[command(name = "waycast")]
 #[command(about = "Miracast source for wlroots-based compositors")]
 struct Cli {
     /// Emit machine-readable output: one JSON object per line on stdout,
     /// with logs routed to stderr so stdout stays parseable.
     // `global = true` so this is accepted both before and after the
-    // subcommand -- `swaybeam --json daemon` and `swaybeam daemon --json`
+    // subcommand -- `waycast --json daemon` and `waycast daemon --json`
     // both work. Without it clap only accepts the former, while this
     // project's own docs and commit messages use the latter.
     #[arg(long, global = true)]
@@ -156,7 +156,7 @@ async fn main() -> Result<()> {
 }
 
 async fn doctor_command(json_output: bool) -> Result<()> {
-    use swaybeam_doctor::check_all;
+    use waycast_doctor::check_all;
 
     if json_output {
         let report = check_all()?;
@@ -180,11 +180,11 @@ async fn doctor_command(json_output: bool) -> Result<()> {
 }
 
 async fn discover_command(timeout: u64, interface: &str, json_output: bool) -> Result<()> {
-    use swaybeam_net::{P2pConfig, P2pManager};
+    use waycast_net::{P2pConfig, P2pManager};
 
     let config = P2pConfig {
         interface_name: interface.to_string(),
-        group_name: "swaybeam".to_string(),
+        group_name: "waycast".to_string(),
     };
 
     let manager = P2pManager::new(config).await?;
@@ -226,11 +226,11 @@ async fn discover_command(timeout: u64, interface: &str, json_output: bool) -> R
 }
 
 async fn connect_command(sink_param: &str, interface: &str, json_output: bool) -> Result<()> {
-    use swaybeam_net::{P2pConfig, P2pManager};
+    use waycast_net::{P2pConfig, P2pManager};
 
     let config = P2pConfig {
         interface_name: interface.to_string(),
-        group_name: "swaybeam".to_string(),
+        group_name: "waycast".to_string(),
     };
 
     let manager = P2pManager::new(config).await?;
@@ -281,7 +281,7 @@ async fn connect_command(sink_param: &str, interface: &str, json_output: bool) -
 }
 
 async fn stream_command(width: u32, height: u32, framerate: u32, json_output: bool) -> Result<()> {
-    use swaybeam_stream::{StreamConfig, StreamPipeline};
+    use waycast_stream::{StreamConfig, StreamPipeline};
 
     let config = StreamConfig {
         video_width: width,
@@ -312,11 +312,11 @@ async fn stream_command(width: u32, height: u32, framerate: u32, json_output: bo
 }
 
 async fn disconnect_command(interface: &str, json_output: bool) -> Result<()> {
-    use swaybeam_net::{P2pConfig, P2pManager};
+    use waycast_net::{P2pConfig, P2pManager};
 
     let config = P2pConfig {
         interface_name: interface.to_string(),
-        group_name: "swaybeam".to_string(),
+        group_name: "waycast".to_string(),
     };
 
     let manager = P2pManager::new(config).await?;
@@ -342,8 +342,8 @@ async fn disconnect_command(interface: &str, json_output: bool) -> Result<()> {
 /// agnostic (it only knows about the typed `DaemonEvent` enum), and the CLI
 /// crate — which already depends on `serde_json` for every other
 /// subcommand's `--json` output — owns turning events into wire JSON.
-fn daemon_event_json(event: swaybeam_daemon::DaemonEvent) -> serde_json::Value {
-    use swaybeam_daemon::DaemonEvent;
+fn daemon_event_json(event: waycast_daemon::DaemonEvent) -> serde_json::Value {
+    use waycast_daemon::DaemonEvent;
 
     match event {
         DaemonEvent::Started => json!({"event": "started"}),
@@ -373,7 +373,7 @@ fn daemon_event_json(event: swaybeam_daemon::DaemonEvent) -> serde_json::Value {
     }
 }
 
-fn sink_json(sink: &swaybeam_net::Sink) -> serde_json::Value {
+fn sink_json(sink: &waycast_net::Sink) -> serde_json::Value {
     json!({
         "name": &sink.name,
         "address": &sink.address,
@@ -392,9 +392,9 @@ async fn daemon_command(
     interface: &str,
     json_output: bool,
 ) -> Result<()> {
-    use swaybeam_daemon::{Daemon, DaemonConfig};
-    use swaybeam_external::ExternalResolution;
-    use swaybeam_stream::VideoCodec;
+    use waycast_daemon::{Daemon, DaemonConfig};
+    use waycast_external::ExternalResolution;
+    use waycast_stream::VideoCodec;
 
     if !json_output {
         println!("Starting Miracast daemon...");
@@ -506,25 +506,25 @@ mod tests {
 
     #[test]
     fn test_cli_parsing() {
-        let cmd = Cli::try_parse_from(["swaybeam", "doctor"]);
+        let cmd = Cli::try_parse_from(["waycast", "doctor"]);
         assert!(cmd.is_ok());
 
-        let cmd = Cli::try_parse_from(["swaybeam", "discover"]);
+        let cmd = Cli::try_parse_from(["waycast", "discover"]);
         assert!(cmd.is_ok());
 
-        let cmd = Cli::try_parse_from(["swaybeam", "connect", "-s", "TestSink"]);
+        let cmd = Cli::try_parse_from(["waycast", "connect", "-s", "TestSink"]);
         assert!(cmd.is_ok());
 
-        let cmd = Cli::try_parse_from(["swaybeam", "stream"]);
+        let cmd = Cli::try_parse_from(["waycast", "stream"]);
         assert!(cmd.is_ok());
 
-        let cmd = Cli::try_parse_from(["swaybeam", "disconnect"]);
+        let cmd = Cli::try_parse_from(["waycast", "disconnect"]);
         assert!(cmd.is_ok());
 
-        let cmd = Cli::try_parse_from(["swaybeam", "daemon"]);
+        let cmd = Cli::try_parse_from(["waycast", "daemon"]);
         assert!(cmd.is_ok());
 
-        let cmd = Cli::try_parse_from(["swaybeam", "status"]);
+        let cmd = Cli::try_parse_from(["waycast", "status"]);
         assert!(cmd.is_ok());
     }
 
@@ -533,8 +533,8 @@ mod tests {
     // consumer, so it should fail a test, not just a changelog note.
     #[test]
     fn daemon_event_json_shapes() {
-        use swaybeam_daemon::DaemonEvent;
-        use swaybeam_net::Sink;
+        use waycast_daemon::DaemonEvent;
+        use waycast_net::Sink;
 
         assert_eq!(
             daemon_event_json(DaemonEvent::Started),

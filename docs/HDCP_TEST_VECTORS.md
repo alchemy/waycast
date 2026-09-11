@@ -9,11 +9,11 @@ HDCP 2.x uses the following cryptographic operations:
 - **HMAC-SHA256** for H_prime and L_prime derivation
 - **RSA-2048** for Km encryption during AKE
 
-## Test Vector from swaybeam Implementation
+## Test Vector from waycast Implementation
 
 ### Test Vector 1: Kd Derivation
 
-From `/home/agil/swaybeam/crates/daemon/src/lib.rs` (test_aes_ctr_kd_derivation)
+From `/home/agil/waycast/crates/daemon/src/lib.rs` (test_aes_ctr_kd_derivation)
 
 #### Inputs
 - **r_tx** (64-bit nonce from transmitter):
@@ -96,9 +96,9 @@ L_prime is used for locality check and is derived as follows:
    L_prime = HMAC-SHA256(key, r_n)
    ```
 
-## Implementation in swaybeam
+## Implementation in waycast
 
-The swaybeam project implements HDCP 2.x cryptographic operations in:
+The waycast project implements HDCP 2.x cryptographic operations in:
 
 - **File**: `crates/daemon/src/lib.rs`
 - **Functions**:
@@ -115,7 +115,7 @@ The swaybeam project implements HDCP 2.x cryptographic operations in:
 To verify the implementation:
 
 ```bash
-cd /home/agil/swaybeam
+cd /home/agil/waycast
 cargo test test_aes_ctr_kd_derivation -- --nocapture
 ```
 
@@ -188,7 +188,7 @@ print("All tests passed!")
 - Cryptographic analysis papers on HDCP 2.x protocol (search on IACR ePrint)
 
 ### Open Source Implementations
-1. **swaybeam**: `/home/agil/swaybeam/crates/daemon/src/lib.rs`
+1. **waycast**: `/home/agil/waycast/crates/daemon/src/lib.rs`
    - Rust implementation of HDCP 2.x
    - Includes unit tests with known-good values
 
@@ -220,7 +220,7 @@ For complete testing, you would need:
 
 To generate additional test vectors, you can:
 
-1. Use the Rust implementation in swaybeam
+1. Use the Rust implementation in waycast
 2. Implement the algorithms using cryptographic libraries
 3. Verify against known HDCP 2.x devices (requires physical hardware)
 
@@ -228,7 +228,7 @@ To generate additional test vectors, you can:
 
 ```rust
 // In Rust, you can create test vectors using the existing implementation
-use swaybeam_daemon::Daemon;
+use waycast_daemon::Daemon;
 
 fn generate_test_vector() {
     // Generate random r_tx and Km
@@ -278,4 +278,4 @@ cat crates/daemon/src/lib.rs | grep -A 30 "fn compute_hdcp_kd"
 
 ## Conclusion
 
-While official HDCP 2.x test vectors are not publicly available due to licensing restrictions, the swaybeam project provides a working implementation with verified test vectors for Kd derivation. Additional test vectors can be generated using the implementation, but verification against real HDCP-compliant devices requires physical hardware and proper licensing.
+While official HDCP 2.x test vectors are not publicly available due to licensing restrictions, the waycast project provides a working implementation with verified test vectors for Kd derivation. Additional test vectors can be generated using the implementation, but verification against real HDCP-compliant devices requires physical hardware and proper licensing.

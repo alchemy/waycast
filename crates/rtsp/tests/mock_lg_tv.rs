@@ -24,7 +24,7 @@ pub const LG_TV_RTSP_PORT: u16 = 7236;
 /// Standard Miracast RTSP port
 pub const STANDARD_RTSP_PORT: u16 = 7236;
 
-/// Expected WFD IEs from source (swaybeam)
+/// Expected WFD IEs from source (waycast)
 /// Format: Subelement ID | Length | Device Info | RTSP Port | Throughput
 pub const EXPECTED_SOURCE_WFD_IES: &[u8] = &[
     0x00, // Subelement ID: WFD Device Information

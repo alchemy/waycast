@@ -1,5 +1,5 @@
 [package]
-name = "swaybeam-external"
+name = "waycast-external"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

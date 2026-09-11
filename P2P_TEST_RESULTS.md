@@ -4,7 +4,7 @@
 
 ### 1. Discovery and Connection Status
 - ✅ P2P Device `p2p-dev-wlp2s0` exists and accessible
-- ✅ Currently connecting to `swaybeam_group` (shows code functions correctly)
+- ✅ Currently connecting to `waycast_group` (shows code functions correctly)
 - ✅ Connected to peer `BA:16:5F:ED:57:88`
 - ✅ Visible P2P sink `DIRECT-7e` (TV on MAC: `26:28:BC:A8:6C:FE`) detected
 
@@ -32,7 +32,7 @@
 
 ## Key Findings
 
-1. **System is Functional**: The P2P infrastructure is working properly with the swaybeam crate implementing correct WFD IEs.
+1. **System is Functional**: The P2P infrastructure is working properly with the waycast crate implementing correct WFD IEs.
 
 2. **Correct Specifications**:
    - RTSP port 7236 correctly configured (per Miracast spec)
@@ -47,13 +47,13 @@ The P2P connection functionality has been successfully verified:
 
 ✅ P2P discovery mechanisms working (via NetworkManager D-Bus API)
 ✅ WFD Information Elements correctly formatted for Miracast compatibility
-✅ Swaybeam net crate builds WFD IEs per specification
+✅ Waycast net crate builds WFD IEs per specification
 ✅ Device advertised as proper WFD Source device on RTSP port 7236
 ✅ Integration with NetworkManager P2P implementation successful
 ✅ Hardware P2P device `p2p-dev-wlp2s0` operational
 
 
-The verification shows that the P2P component of swaybeam is functioning correctly according to the Miracast specification. The issue seen in testing appears to be at higher protocol layers rather than P2P discovery/connection itself.
+The verification shows that the P2P component of waycast is functioning correctly according to the Miracast specification. The issue seen in testing appears to be at higher protocol layers rather than P2P discovery/connection itself.
 ---
 
 # Screen Capture Investigation (April 5, 2026)
@@ -101,7 +101,7 @@ systemctl --user restart xdg-desktop-portal.service && sleep 3
 
 # Run daemon
 env XDG_CURRENT_DESKTOP=sway GST_DEBUG=pipewiresrc:5 \
-  target/release/swaybeam daemon --sink 22:28:BC:A8:6C:FE --client
+  target/release/waycast daemon --sink 22:28:BC:A8:6C:FE --client
 
 # Check resolution (should be 1920x1080, currently shows 640x480)
 # Output line: "set format video/x-raw ... width=(int)??? height=(int)???"
@@ -109,7 +109,7 @@ env XDG_CURRENT_DESKTOP=sway GST_DEBUG=pipewiresrc:5 \
 
 ## Snap Example (Working)
 ```bash
-cargo run --example snap -p swaybeam-capture --features real_portal
+cargo run --example snap -p waycast-capture --features real_portal
 # Successfully captures at 1920x1080
 # Uses: pipewiresrc fd=X target-object=xdg-desktop-portal-wlr ...
 ```
@@ -153,7 +153,7 @@ systemctl --user restart xdg-desktop-portal-wlr.service && sleep 1 && \
 systemctl --user restart xdg-desktop-portal.service && sleep 3
 
 env XDG_CURRENT_DESKTOP=sway \
-  target/release/swaybeam daemon --sink <TV_MAC> --client
+  target/release/waycast daemon --sink <TV_MAC> --client
 
 # Expected: 1920x1080 resolution (not 640x480 webcam)
 ```
@@ -225,7 +225,7 @@ watch -n1 'pw-cli ls Node | grep -A5 Video/Source'
 
 # Run daemon with full PipeWire debug
 GST_DEBUG=pipewiresrc:5 PIPEWIRE_DEBUG=4 \
-  ./target/release/swaybeam daemon --sink <TV_MAC> --client
+  ./target/release/waycast daemon --sink <TV_MAC> --client
 
 # Check portal state
 busctl --user introspect org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop

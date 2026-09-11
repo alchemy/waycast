@@ -83,7 +83,7 @@ sudo tcpdump -i p2p-wlp2s0-0 -w test.pcap
 ### Manual Test
 ```bash
 # Terminal 1: RTSP server
-cargo run --example debug_rtsp --package swaybeam-cli
+cargo run --example debug_rtsp --package waycast-cli
 
 # Terminal 2: P2P connection
 nmcli con add type wifi-p2p con-name test peer "22:28:BC:A8:6C:FE" wifi-p2p.wfd-ies 000006001C444400

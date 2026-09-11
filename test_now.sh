@@ -11,7 +11,7 @@ sleep 2
 
 # Start RTSP
 echo "1. Starting RTSP server..."
-cargo run --example debug_rtsp --package swaybeam-cli 2>&1 &
+cargo run --example debug_rtsp --package waycast-cli 2>&1 &
 RTSP_PID=$!
 sleep 3
 

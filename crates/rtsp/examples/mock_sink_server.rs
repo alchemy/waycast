@@ -185,7 +185,7 @@ impl MockMiracastSink {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("╔═══════════════════════════════════════════╗");
     println!("║   Mock Miracast Sink Server                ║");
-    println!("║   For testing swaybeam implementation     ║");
+    println!("║   For testing waycast implementation     ║");
     println!("╚═══════════════════════════════════════════╝\n");
 
     let addr = "127.0.0.1:7236";
@@ -195,7 +195,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Waiting for connections...\n");
     println!("Usage:");
     println!("  1. Run this server: cargo run --example mock_sink_server");
-    println!("  2. Test with swaybeam: cargo run --package swaybeam-rtsp --example basic_server");
+    println!("  2. Test with waycast: cargo run --package waycast-rtsp --example basic_server");
     println!("  3. Or use: telnet localhost 7236\n");
 
     loop {

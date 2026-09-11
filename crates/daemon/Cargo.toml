@@ -1,16 +1,16 @@
 [package]
-name = "swaybeam-daemon"
+name = "waycast-daemon"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-swaybeam-doctor = { path = "../doctor" }
-swaybeam-capture = { path = "../capture", features = ["real_portal"] }
-swaybeam-stream = { path = "../stream" }
-swaybeam-net = { path = "../net" }
-swaybeam-rtsp = { path = "../rtsp" }
-swaybeam-audio = { path = "../audio" }
-swaybeam-external = { path = "../external" }
+waycast-doctor = { path = "../doctor" }
+waycast-capture = { path = "../capture", features = ["real_portal"] }
+waycast-stream = { path = "../stream" }
+waycast-net = { path = "../net" }
+waycast-rtsp = { path = "../rtsp" }
+waycast-audio = { path = "../audio" }
+waycast-external = { path = "../external" }
 anyhow.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["macros", "sync", "time", "signal"] }

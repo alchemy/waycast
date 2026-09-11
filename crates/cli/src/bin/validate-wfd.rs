@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
-use swaybeam_rtsp::WfdCapabilities;
+use waycast_rtsp::WfdCapabilities;
 
 #[derive(Parser)]
 #[command(name = "validate-wfd")]

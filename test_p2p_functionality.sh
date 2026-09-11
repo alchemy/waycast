@@ -92,11 +92,11 @@ fi
 # Verify we have a Rust/Cargo example for checking P2P
 echo
 echo "6. Testing Rust P2P discovery capabilities..."
-if cargo run --example discover_and_connect --package swaybeam-net -- --help >/dev/null 2>&1; then
+if cargo run --example discover_and_connect --package waycast-net -- --help >/dev/null 2>&1; then
     echo "   ✓ Rust discovery_and_connect example compiled and available"
 else
     echo "   ⚠ Could not run Rust example, attempting binary compile test..."
-    cargo check --examples --package swaybeam-net 2>&1 || true
+    cargo check --examples --package waycast-net 2>&1 || true
 fi
 
 # Perform a basic test using the Rust example code but modified for discovery only
@@ -104,13 +104,13 @@ echo
 echo "7. Checking P2P capabilities via Rust net crate..."
 
 # Test Rust compilation
-if cargo build --package swaybeam-net 2>/dev/null; then
-    echo "   ✓ swaybeam-net crate compiles correctly"
+if cargo build --package waycast-net 2>/dev/null; then
+    echo "   ✓ waycast-net crate compiles correctly"
 
     # Show the discovery_and_connect example source to confirm functionality
     echo "   Example can perform P2P discovery for $p2p_device"
 else
-    echo "   ✗ swaybeam-net crate doesn't compile correctly"
+    echo "   ✗ waycast-net crate doesn't compile correctly"
 fi
 
 # Check current P2P status in NetworkManager

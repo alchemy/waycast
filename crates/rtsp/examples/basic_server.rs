@@ -1,7 +1,7 @@
 //! Example demonstrating RTSP server functionality
 
 use std::collections::HashMap;
-use swaybeam_rtsp::{RtspServer, RtspSession};
+use waycast_rtsp::{RtspServer, RtspSession};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Miracast RTSP - WFD Negotiation Example");

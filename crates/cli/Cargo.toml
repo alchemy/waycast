@@ -1,10 +1,10 @@
 [package]
-name = "swaybeam-cli"
+name = "waycast-cli"
 version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "swaybeam"
+name = "waycast"
 path = "src/main.rs"
 
 [[bin]]
@@ -20,13 +20,13 @@ name = "diagnose-session"
 path = "src/bin/diagnose-session.rs"
 
 [dependencies]
-swaybeam-daemon = { path = "../daemon" }
-swaybeam-net = { path = "../net" }
-swaybeam-rtsp = { path = "../rtsp" }
-swaybeam-doctor = { path = "../doctor" }
-swaybeam-capture = { path = "../capture" }
-swaybeam-stream = { path = "../stream" }
-swaybeam-external = { path = "../external" }
+waycast-daemon = { path = "../daemon" }
+waycast-net = { path = "../net" }
+waycast-rtsp = { path = "../rtsp" }
+waycast-doctor = { path = "../doctor" }
+waycast-capture = { path = "../capture" }
+waycast-stream = { path = "../stream" }
+waycast-external = { path = "../external" }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

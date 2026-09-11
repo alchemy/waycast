@@ -28,7 +28,7 @@ pub struct VirtualAudioSink {
 impl VirtualAudioSink {
     pub fn create() -> Result<Self> {
         let uuid = Uuid::new_v4();
-        let sink_name = format!("swaybeam_sink_{:.8}", uuid);
+        let sink_name = format!("waycast_sink_{:.8}", uuid);
 
         let previous_default = get_default_sink()?;
         info!("Previous default sink: {:?}", previous_default);
@@ -154,7 +154,7 @@ impl Drop for VirtualAudioSink {
 // disk for exactly as long as we owe this sink a cleanup, independent of
 // whether the process gets to run its own Drop before exiting (a crash, a
 // SIGKILL, a suspend that doesn't resume cleanly all skip Drop). Mirrors
-// swaybeam-external's identical breadcrumb for the Hyprland virtual output
+// waycast-external's identical breadcrumb for the Hyprland virtual output
 // — confirmed live that both leak the same way from the same kind of
 // abrupt termination (see ARCH.md in the netcast repo, "Smoke test against
 // real hardware"): the virtual sink was still the default output, module
@@ -168,7 +168,7 @@ fn state_dir() -> Result<PathBuf> {
         .map_err(|_| {
             AudioError::CommandFailed("Neither $XDG_STATE_HOME nor $HOME is set".into())
         })?;
-    let dir = base.join("swaybeam");
+    let dir = base.join("waycast");
     std::fs::create_dir_all(&dir).map_err(|e| AudioError::CommandFailed(e.to_string()))?;
     Ok(dir)
 }
@@ -248,7 +248,7 @@ fn parse_breadcrumb(content: &str) -> Option<StaleBreadcrumb> {
 }
 
 /// Whether the process that recorded a breadcrumb is still running and is
-/// still swaybeam. Mirrors swaybeam-external's check of the same name --
+/// still waycast. Mirrors waycast-external's check of the same name --
 /// duplicated rather than shared because these crates have no common
 /// dependency, and it is small enough not to warrant creating one. The
 /// command check guards against pid reuse.
@@ -258,18 +258,18 @@ fn owner_is_alive(pid: u32) -> bool {
         Err(_) => return false,
     };
 
-    if comm.trim().contains("swaybeam") {
+    if comm.trim().contains("waycast") {
         return true;
     }
 
     std::fs::read(format!("/proc/{}/cmdline", pid))
-        .map(|raw| String::from_utf8_lossy(&raw).contains("swaybeam"))
+        .map(|raw| String::from_utf8_lossy(&raw).contains("waycast"))
         .unwrap_or(false)
 }
 
 /// Removes a virtual sink a *previous* session created but never cleaned
 /// up. Meant to be called once, at the very start of every new session,
-/// before `VirtualAudioSink::create` — see swaybeam-external's
+/// before `VirtualAudioSink::create` — see waycast-external's
 /// `cleanup_stale` for the matching Hyprland-output recovery this is
 /// designed to run alongside.
 pub fn cleanup_stale() -> Result<()> {
@@ -282,7 +282,7 @@ pub fn cleanup_stale() -> Result<()> {
     // session (and reset its default sink) mid-stream.
     if stale.owner_alive {
         warn!(
-            "Another swaybeam session is already running and owns virtual audio sink \
+            "Another waycast session is already running and owns virtual audio sink \
              '{}' -- leaving it alone",
             stale.sink_name
         );
@@ -372,7 +372,7 @@ fn get_default_sink() -> Result<Option<String>> {
 }
 
 fn load_null_sink(sink_name: &str) -> Result<u32> {
-    let description = format!("swaybeam Stream {}", &sink_name[..8]);
+    let description = format!("waycast Stream {}", &sink_name[..8]);
     let args = format!(
         "sink_name={} rate=48000 sink_properties=device.description=\"{}\" device.icon_name=\"video-display\"",
         sink_name, description
@@ -406,10 +406,10 @@ mod tests {
     #[test]
     fn parse_breadcrumb_round_trips_with_previous_default() {
         let stale = parse_breadcrumb(
-            "swaybeam_sink_abcd1234\n536870916\nalsa_output.pci-0000_00_1f.3.HiFi__Speaker__sink\n",
+            "waycast_sink_abcd1234\n536870916\nalsa_output.pci-0000_00_1f.3.HiFi__Speaker__sink\n",
         )
         .expect("valid breadcrumb should parse");
-        assert_eq!(stale.sink_name, "swaybeam_sink_abcd1234");
+        assert_eq!(stale.sink_name, "waycast_sink_abcd1234");
         assert_eq!(stale.module_index, 536870916);
         assert_eq!(
             stale.previous_default.as_deref(),
@@ -422,22 +422,22 @@ mod tests {
         // write_breadcrumb writes a blank third line when previous_default
         // was None (there was no default sink to remember) -- must parse
         // back to None, not Some("").
-        let stale = parse_breadcrumb("swaybeam_sink_abcd1234\n42\n\n").expect("should parse");
+        let stale = parse_breadcrumb("waycast_sink_abcd1234\n42\n\n").expect("should parse");
         assert_eq!(stale.previous_default, None);
     }
 
     #[test]
     fn parse_breadcrumb_marks_a_live_owner() {
-        // This test process is itself a "swaybeam" binary by name, so its
+        // This test process is itself a "waycast" binary by name, so its
         // own pid is exactly the case that must read as alive -- the one
         // that makes cleanup_stale leave a running session's sink alone.
         let content = format!(
-            "{}\nswaybeam_sink_abcd1234\n42\nalsa_output.real\n",
+            "{}\nwaycast_sink_abcd1234\n42\nalsa_output.real\n",
             std::process::id()
         );
         let stale = parse_breadcrumb(&content).expect("should parse");
         assert!(stale.owner_alive, "own pid should read as a live owner");
-        assert_eq!(stale.sink_name, "swaybeam_sink_abcd1234");
+        assert_eq!(stale.sink_name, "waycast_sink_abcd1234");
         assert_eq!(stale.module_index, 42);
         assert_eq!(stale.previous_default.as_deref(), Some("alsa_output.real"));
     }
@@ -445,7 +445,7 @@ mod tests {
     #[test]
     fn parse_breadcrumb_marks_a_dead_owner() {
         // u32::MAX is above any real pid, so it can't be running.
-        let content = format!("{}\nswaybeam_sink_abcd1234\n42\n\n", u32::MAX);
+        let content = format!("{}\nwaycast_sink_abcd1234\n42\n\n", u32::MAX);
         let stale = parse_breadcrumb(&content).expect("should parse");
         assert!(!stale.owner_alive, "nonexistent pid must read as dead");
     }
@@ -453,9 +453,9 @@ mod tests {
     #[test]
     fn parse_breadcrumb_treats_pre_owner_format_as_unowned() {
         // Written by a build before owners existed, so nothing holds it.
-        let stale = parse_breadcrumb("swaybeam_sink_abcd1234\n42\n\n").expect("should parse");
+        let stale = parse_breadcrumb("waycast_sink_abcd1234\n42\n\n").expect("should parse");
         assert!(!stale.owner_alive);
-        assert_eq!(stale.sink_name, "swaybeam_sink_abcd1234");
+        assert_eq!(stale.sink_name, "waycast_sink_abcd1234");
         assert_eq!(stale.module_index, 42);
     }
 

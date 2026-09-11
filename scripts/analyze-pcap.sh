@@ -4,7 +4,7 @@
 
 set -e
 
-PCAP="${1:-swaybeam-session.pcap}"
+PCAP="${1:-waycast-session.pcap}"
 
 if [ ! -f "$PCAP" ]; then
   echo "Error: File not found: $PCAP"

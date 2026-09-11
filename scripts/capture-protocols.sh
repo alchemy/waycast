@@ -5,7 +5,7 @@
 set -e
 
 IFACE="${1:-p2p-wlp2s0-7}"
-OUTPUT="${2:-swaybeam-protocols.pcap}"
+OUTPUT="${2:-waycast-protocols.pcap}"
 
 echo "Capturing protocol traffic on $IFACE..."
 echo "Ports: RTSP(7236), HDCP(53002), RTP(53000-53010)"

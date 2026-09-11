@@ -13,11 +13,11 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.4.3"
+version = "0.5.0"
 edition = "2021"
 license = "MIT"
-authors = ["swaybeam contributors"]
-repository = "https://github.com/forkline/swaybeam"
+authors = ["waycast contributors"]
+repository = "https://github.com/alchemy/waycast"
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["full"] }

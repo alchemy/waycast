@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod network_tests {
-    use swaybeam_net::{P2pConfig, Sink};
+    use waycast_net::{P2pConfig, Sink};
 
     /// Test P2P configuration variations
     #[test]
@@ -13,7 +13,7 @@ mod network_tests {
         // Default configuration
         let default_config = P2pConfig {
             interface_name: "wlan0".to_string(),
-            group_name: "swaybeam".to_string(),
+            group_name: "waycast".to_string(),
         };
         assert_eq!(default_config.interface_name, "wlan0");
         println!("✓ Default configuration valid");

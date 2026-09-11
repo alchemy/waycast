@@ -1,10 +1,10 @@
-# Swaybeam Justfile
+# Waycast Justfile
 # Run `just --list` to see available commands
 
 CARGO_TARGET_DIR := "target"
 CARGO_TARGET := "x86_64-unknown-linux-gnu"
 PROJECT_VERSION := `sed -n 's/^version = "\(.*\)"/\1/p' ./Cargo.toml | head -n1`
-PKG_BASE_NAME := "swaybeam-" + PROJECT_VERSION + "-" + CARGO_TARGET
+PKG_BASE_NAME := "waycast-" + PROJECT_VERSION + "-" + CARGO_TARGET
 
 # Show available commands
 default:
@@ -91,37 +91,37 @@ pre-commit:
 install-hooks:
     pre-commit install
 
-# Run swaybeam doctor to check system readiness
+# Run waycast doctor to check system readiness
 doctor: build
-    ./target/release/swaybeam doctor
+    ./target/release/waycast doctor
 
-# Run swaybeam daemon
+# Run waycast daemon
 daemon: build
-    ./target/release/swaybeam daemon
+    ./target/release/waycast daemon
 
 # Run with debug logging
 debug *ARGS: build
-    RUST_LOG=debug ./target/release/swaybeam {{ARGS}}
+    RUST_LOG=debug ./target/release/waycast {{ARGS}}
 
 # Run examples
 example-doctor: build-dev
-    cargo run --example check_system -p swaybeam-doctor
+    cargo run --example check_system -p waycast-doctor
 
 example-net: build-dev
-    cargo run --example discover_and_connect -p swaybeam-net
+    cargo run --example discover_and_connect -p waycast-net
 
 example-rtsp: build-dev
-    cargo run --example basic_server -p swaybeam-rtsp
+    cargo run --example basic_server -p waycast-rtsp
 
 # Install binary to /usr/local/bin
 install: build
-    sudo cp target/release/swaybeam /usr/local/bin/
-    @echo "Installed swaybeam to /usr/local/bin/"
+    sudo cp target/release/waycast /usr/local/bin/
+    @echo "Installed waycast to /usr/local/bin/"
 
 # Uninstall binary
 uninstall:
-    sudo rm -f /usr/local/bin/swaybeam
-    @echo "Uninstalled swaybeam"
+    sudo rm -f /usr/local/bin/waycast
+    @echo "Uninstalled waycast"
 
 # Clean build artifacts
 clean:
@@ -147,7 +147,7 @@ docs:
 # Build release tarball
 release-tarball: build
     tar -czf {{PKG_BASE_NAME}}.tar.gz \
-        -C target/release swaybeam
+        -C target/release waycast
     @echo "Created release tarball: {{PKG_BASE_NAME}}.tar.gz"
 
 # Full release preparation

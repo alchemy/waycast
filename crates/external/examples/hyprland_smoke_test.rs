@@ -5,11 +5,11 @@
 //! another shell), then explicitly cleans up. Not part of the crate's test
 //! suite on purpose — it has real side effects on a live session (a new
 //! monitor, an edited `xdph.conf`, a portal restart) and should only be run
-//! deliberately: `cargo run -p swaybeam-external --example hyprland_smoke_test
+//! deliberately: `cargo run -p waycast-external --example hyprland_smoke_test
 //! [auto|4k|1080|720]` (default 1080).
 
 use std::io::Write;
-use swaybeam_external::{ExternalResolution, VirtualOutput};
+use waycast_external::{ExternalResolution, VirtualOutput};
 
 fn main() {
     let resolution = match std::env::args().nth(1).as_deref() {

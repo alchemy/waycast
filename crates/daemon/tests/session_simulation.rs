@@ -4,10 +4,10 @@
 #[cfg(test)]
 mod session_simulation {
     use std::time::Duration;
-    use swaybeam_daemon::{Daemon, DaemonConfig, DaemonState};
-    use swaybeam_rtsp::{NegotiatedCodec, RtspSession, SessionState, WfdCapabilities};
-    use swaybeam_stream::{StreamConfig, VideoCodec};
     use tokio::time::sleep;
+    use waycast_daemon::{Daemon, DaemonConfig, DaemonState};
+    use waycast_rtsp::{NegotiatedCodec, RtspSession, SessionState, WfdCapabilities};
+    use waycast_stream::{StreamConfig, VideoCodec};
 
     /// Simulates a complete Miracast session from discovery to teardown
     #[tokio::test]

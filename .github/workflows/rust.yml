@@ -176,7 +176,7 @@ jobs:
       # release is the actual fault; granting this job contents:write would
       # only have let them both write, and they disagreed about what to write:
       #
-      #   - this job named assets from Cargo.toml (swaybeam-0.4.3-x86_64.tar.gz)
+      #   - this job named assets from Cargo.toml (waycast-0.4.3-x86_64.tar.gz)
       #     while the tag said v0.5.0, so a v0.5.0 release would have carried
       #     0.4.3 archives
       #   - release.yml names them from the tag and builds arm64 as well, which

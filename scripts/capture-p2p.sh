@@ -4,7 +4,7 @@
 
 set -e
 
-OUTPUT="${1:-swaybeam-session.pcap}"
+OUTPUT="${1:-waycast-session.pcap}"
 echo "Monitoring for P2P interface creation..."
 echo "Will capture to: $OUTPUT"
 

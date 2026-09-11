@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
-use swaybeam_rtsp::{RtspMessage, RtspSession, SessionState};
+use waycast_rtsp::{RtspMessage, RtspSession, SessionState};
 
 #[derive(Parser)]
 #[command(name = "validate-rtsp")]

@@ -1,6 +1,6 @@
 # Release Workflow
 #
-# Builds swaybeam for amd64 and arm64 on tag push and attaches the archives
+# Builds waycast for amd64 and arm64 on tag push and attaches the archives
 # to a GitHub Release.
 #
 # Setup Requirements:
@@ -28,7 +28,7 @@
 #   It is not self-contained: the runtime packages named in the README are
 #   still required on the target machine. This is not a static build because
 #   GStreamer loads its plugins as shared objects at runtime, so a static
-#   swaybeam would still need the plugin set present to do anything.
+#   waycast would still need the plugin set present to do anything.
 # - Built on Ubuntu 24.04, so the binaries need glibc 2.39 or newer. They
 #   will not run on older distributions; those should build from source.
 # - arm64 builds on a native runner rather than cross-compiling. Cross would
@@ -80,7 +80,7 @@ jobs:
       # --locked so a release is built from the committed Cargo.lock rather
       # than whatever resolves on the day.
       - name: Build
-        run: cargo build --release --locked --bin swaybeam
+        run: cargo build --release --locked --bin waycast
 
       - name: Package
         id: package
@@ -89,11 +89,11 @@ jobs:
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             version="$(git describe --tags --always --dirty)"
           fi
-          name="swaybeam-${version}-linux-${{ matrix.arch }}"
+          name="waycast-${version}-linux-${{ matrix.arch }}"
 
-          strip target/release/swaybeam
+          strip target/release/waycast
           mkdir -p "dist/${name}"
-          cp target/release/swaybeam "dist/${name}/"
+          cp target/release/waycast "dist/${name}/"
           cp LICENSE README.md "dist/${name}/"
           tar -C dist -czf "dist/${name}.tar.gz" "${name}"
           ( cd dist && sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256" )
@@ -138,20 +138,20 @@ jobs:
             echo "## Install"
             echo
             echo '```bash'
-            echo "tar xzf swaybeam-${GITHUB_REF_NAME}-linux-\$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz"
-            echo "install -Dm755 swaybeam-*/swaybeam ~/.local/bin/swaybeam"
-            echo 'swaybeam doctor'
+            echo "tar xzf waycast-${GITHUB_REF_NAME}-linux-\$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz"
+            echo "install -Dm755 waycast-*/waycast ~/.local/bin/waycast"
+            echo 'waycast doctor'
             echo '```'
             echo
             echo "Or build from source:"
             echo
             echo '```bash'
-            echo "cargo install --git ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY} --tag ${GITHUB_REF_NAME} swaybeam-cli --bin swaybeam --root ~/.local"
+            echo "cargo install --git ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY} --tag ${GITHUB_REF_NAME} waycast-cli --bin waycast --root ~/.local"
             echo '```'
             echo
             echo "These binaries are dynamically linked and need the GStreamer,"
             echo "PipeWire and portal packages listed in the README, plus glibc"
-            echo "2.39 or newer. Run \`swaybeam doctor\` to check the host."
+            echo "2.39 or newer. Run \`waycast doctor\` to check the host."
           } > "$notes"
 
           gh release create "${GITHUB_REF_NAME}" \

@@ -168,7 +168,7 @@ impl Capture {
         let token_counter = std::sync::atomic::AtomicU32::new(0);
         let next_token = |prefix: &str| -> String {
             let n = token_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            format!("swaybeam_{}_{}", prefix, n)
+            format!("waycast_{}_{}", prefix, n)
         };
 
         // Step 1: CreateSession

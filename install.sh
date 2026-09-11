@@ -1,9 +1,9 @@
 #!/bin/bash
-# Install swaybeam
+# Install waycast
 
 set -e
 
-echo "=== Installing swaybeam ==="
+echo "=== Installing waycast ==="
 
 # Check for Rust
 if ! command -v cargo &> /dev/null; then
@@ -44,11 +44,11 @@ echo "Building..."
 cargo build --release
 
 # Install binary
-echo "Installing binary to /usr/local/bin/swaybeam"
-sudo cp target/release/swaybeam /usr/local/bin/
+echo "Installing binary to /usr/local/bin/waycast"
+sudo cp target/release/waycast /usr/local/bin/
 
 echo ""
 echo "=== Installation Complete ==="
 echo ""
-echo "Run 'swaybeam doctor' to check if your system is ready."
+echo "Run 'waycast doctor' to check if your system is ready."
 echo ""

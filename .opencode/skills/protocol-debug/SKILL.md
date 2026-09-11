@@ -5,7 +5,7 @@ description: Use Wireshark/tcpdump capture scripts to debug Miracast/WFD/RTSP/HD
 
 ## Purpose
 
-Provide fast, evidence-based protocol debugging using packet capture to identify exact message sequences, timing issues, and protocol mismatches when connecting swaybeam to Miracast sinks (especially LG webOS TVs).
+Provide fast, evidence-based protocol debugging using packet capture to identify exact message sequences, timing issues, and protocol mismatches when connecting waycast to Miracast sinks (especially LG webOS TVs).
 
 ## When to use
 
@@ -46,8 +46,8 @@ All scripts are in `scripts/` directory and are executable.
 # Terminal 1: Start capture (will wait for P2P interface)
 ./scripts/capture-p2p.sh [output-file]
 
-# Terminal 2: Run swaybeam daemon
-cargo run -p swaybeam-cli --bin swaybeam -- daemon --sink "22:28:BC:A8:6C:FE" --client
+# Terminal 2: Run waycast daemon
+cargo run -p waycast-cli --bin waycast -- daemon --sink "22:28:BC:A8:6C:FE" --client
 ```
 
 **What it does:**
@@ -71,7 +71,7 @@ cargo run -p swaybeam-cli --bin swaybeam -- daemon --sink "22:28:BC:A8:6C:FE" --
 ./scripts/capture-protocols.sh [interface] [output-file]
 
 # Example:
-./scripts/capture-protocols.sh p2p-wlp2s0-7 swaybeam-protocols.pcap
+./scripts/capture-protocols.sh p2p-wlp2s0-7 waycast-protocols.pcap
 ```
 
 **What it captures:**
@@ -110,7 +110,7 @@ cargo run -p swaybeam-cli --bin swaybeam -- daemon --sink "22:28:BC:A8:6C:FE" --
 ./scripts/analyze-pcap.sh [pcap-file]
 
 # Example:
-./scripts/analyze-pcap.sh swaybeam-session.pcap
+./scripts/analyze-pcap.sh waycast-session.pcap
 ```
 
 **What it shows:**
@@ -215,16 +215,16 @@ HDCP message IDs (first byte of each message):
 # Step 1: Start capture
 ./scripts/capture-p2p.sh
 
-# Step 2: Run swaybeam (in another terminal)
-cargo run -p swaybeam-cli --bin swaybeam -- daemon --sink "22:28:BC:A8:6C:FE" --client
+# Step 2: Run waycast (in another terminal)
+cargo run -p waycast-cli --bin waycast -- daemon --sink "22:28:BC:A8:6C:FE" --client
 
 # Step 3: Let it fail, stop capture (Ctrl+C)
 
 # Step 4: Quick analysis
-./scripts/analyze-pcap.sh swaybeam-session.pcap
+./scripts/analyze-pcap.sh waycast-session.pcap
 
 # Step 5: Deep analysis
-wireshark swaybeam-session.pcap
+wireshark waycast-session.pcap
 ```
 
 ### Live Monitoring Workflow
@@ -236,8 +236,8 @@ wireshark swaybeam-session.pcap
 # Terminal 2: Watch HDCP
 ./scripts/capture-hdcp-live.sh
 
-# Terminal 3: Run swaybeam
-cargo run -p swaybeam-cli --bin swaybeam -- daemon --sink "22:28:BC:A8:6C:FE" --client
+# Terminal 3: Run waycast
+cargo run -p waycast-cli --bin waycast -- daemon --sink "22:28:BC:A8:6C:FE" --client
 
 # Watch messages appear in real-time
 ```
@@ -245,13 +245,13 @@ cargo run -p swaybeam-cli --bin swaybeam -- daemon --sink "22:28:BC:A8:6C:FE" --
 ### Focused Protocol Capture
 
 ```bash
-# Step 1: Find interface name (run swaybeam first, note interface from logs)
+# Step 1: Find interface name (run waycast first, note interface from logs)
 # Interface will be something like: p2p-wlp2s0-7, p2p-wlan0-5, or p2p0
 
 # Step 2: Capture specific ports
 ./scripts/capture-protocols.sh p2p-wlp2s0-7 session.pcap
 
-# Step 3: Run swaybeam in another terminal
+# Step 3: Run waycast in another terminal
 
 # Step 4: Analyze
 ./scripts/analyze-pcap.sh session.pcap
@@ -359,7 +359,7 @@ If possible, capture traffic from a working Miracast source (GNOME, Windows) con
 
 # Compare
 wireshark gnome-reference.pcap
-wireshark swaybeam-session.pcap
+wireshark waycast-session.pcap
 
 # Look for differences in:
 # - Message sequence
@@ -386,7 +386,7 @@ This shows exactly what a working source does differently.
 
 - [ ] Identified protocol debugging need (RTSP/HDCP failure)
 - [ ] Chose appropriate capture script
-- [ ] Started capture before running swaybeam
+- [ ] Started capture before running waycast
 - [ ] Captured full failed session
 - [ ] Ran analyze-pcap.sh for quick diagnosis
 - [ ] Opened in Wireshark for deep analysis
@@ -396,7 +396,7 @@ This shows exactly what a working source does differently.
 - [ ] Documented findings
 - [ ] Proposed fix based on evidence
 
-## Integration with swaybeam Development
+## Integration with waycast Development
 
 After capture analysis:
 1. Document findings in issue/PR description
@@ -418,18 +418,18 @@ Monitoring for P2P interface creation...
 Found P2P interface: p2p-wlp2s0-7
 Local IP: 192.168.49.10
 Starting capture...
-[Waiting for swaybeam]
+[Waiting for waycast]
 
 # Terminal 2
-$ cargo run -p swaybeam-cli --bin swaybeam -- daemon --sink "22:28:BC:A8:6C:FE" --client
-[swaybeam runs and fails]
+$ cargo run -p waycast-cli --bin waycast -- daemon --sink "22:28:BC:A8:6C:FE" --client
+[waycast runs and fails]
 
 # Terminal 1
 [Ctrl+C to stop capture]
-Capture saved to swaybeam-session.pcap
+Capture saved to waycast-session.pcap
 
 # Terminal 1
-$ ./scripts/analyze-pcap.sh swaybeam-session.pcap
+$ ./scripts/analyze-pcap.sh waycast-session.pcap
 === RTSP Traffic ===
 OPTIONS -> GET_PARAMETER -> SET_PARAMETER -> PLAY -> [RESET]
 
@@ -445,7 +445,7 @@ TCP reset from 192.168.49.1 after PLAY
       additional HDCP messages."
 
 # Terminal 1
-$ wireshark swaybeam-session.pcap
+$ wireshark waycast-session.pcap
 [Deep analysis confirms timing race]
 ```
 

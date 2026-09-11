@@ -180,7 +180,7 @@ impl VirtualOutput {
         // arming it this early leaves a window spanning the whole RTSP
         // negotiation (tens of seconds) in which any other application's
         // screen-share request would consume it, take our output, and leave
-        // swaybeam itself falling through to the interactive picker.
+        // waycast itself falling through to the interactive picker.
         let marker_path = hyprland::marker_path();
 
         info!(
@@ -311,7 +311,7 @@ impl Drop for VirtualOutput {
 }
 
 /// Whether the process that recorded a breadcrumb is still running, and is
-/// still a swaybeam process.
+/// still a waycast process.
 ///
 /// The command check is what makes this safe against PID reuse: a recycled
 /// pid belonging to some unrelated program must not read as "our session is
@@ -325,14 +325,14 @@ pub(crate) fn owner_is_alive(pid: u32) -> bool {
         Err(_) => return false,
     };
 
-    if comm.trim().contains("swaybeam") {
+    if comm.trim().contains("waycast") {
         return true;
     }
 
     // The `comm` field is truncated to 15 chars, so a longer binary name
     // can hide there; fall back to the full command line.
     std::fs::read(format!("/proc/{}/cmdline", pid))
-        .map(|raw| String::from_utf8_lossy(&raw).contains("swaybeam"))
+        .map(|raw| String::from_utf8_lossy(&raw).contains("waycast"))
         .unwrap_or(false)
 }
 
@@ -624,10 +624,10 @@ mod sway {
 // ---------------------------------------------------------------------
 // Hyprland backend — hyprctl IPC + xdg-desktop-portal-hyprland's
 // `screencopy:custom_picker_binary` config hook, gated by a marker file so
-// it only answers swaybeam's own pending capture and falls through to the
+// it only answers waycast's own pending capture and falls through to the
 // real `hyprland-share-picker` for everything else (OBS, browser screen
 // share, etc.). See ../../ARCH.md in the netcast repo ("Build vs. adopt:
-// swaybeam") for how this was spiked and confirmed against a real install.
+// waycast") for how this was spiked and confirmed against a real install.
 // ---------------------------------------------------------------------
 mod hyprland {
     use super::{ExternalError, Result};
@@ -844,7 +844,7 @@ mod hyprland {
         // requested resolution, with no error anywhere. `hl.monitor{}` via
         // `hyprctl eval` is the current API (same one omarchy's own
         // first-party Display panel needs for its monitor toggle, per
-        // basecamp/omarchy#6968 -- this isn't swaybeam-specific fallout,
+        // basecamp/omarchy#6968 -- this isn't waycast-specific fallout,
         // it's this Hyprland version's config migration).
         //
         // "auto" for position lets Hyprland place it beside existing
@@ -1005,8 +1005,8 @@ mod hyprland {
 
     // --- portal auto-select: custom_picker_binary + marker file ---
 
-    const PICKER_MARKER_FILENAME: &str = "swaybeam-portal-target";
-    const PICKER_SCRIPT_FILENAME: &str = "swaybeam-hyprland-picker.sh";
+    const PICKER_MARKER_FILENAME: &str = "waycast-portal-target";
+    const PICKER_SCRIPT_FILENAME: &str = "waycast-hyprland-picker.sh";
 
     // Sentinel lines bounding the block write_xdph_config appends. Shared
     // between there and strip_managed_block below so a stale-recovery pass
@@ -1016,8 +1016,8 @@ mod hyprland {
     // write_xdph_config only ever *appends*, whatever came before the start
     // sentinel is the user's original content, untouched, recoverable from
     // the file alone.
-    const MANAGED_BLOCK_START: &str = "# --- swaybeam: managed block, restored on disconnect ---";
-    const MANAGED_BLOCK_END: &str = "# --- end swaybeam block ---";
+    const MANAGED_BLOCK_START: &str = "# --- waycast: managed block, restored on disconnect ---";
+    const MANAGED_BLOCK_END: &str = "# --- end waycast block ---";
 
     // Breadcrumb recording which output we created, written the moment
     // create_virtual_output succeeds and removed once remove_output has run
@@ -1033,7 +1033,7 @@ mod hyprland {
             .map_err(|_| {
                 ExternalError::ConfigWriteFailed("Neither $XDG_STATE_HOME nor $HOME is set".into())
             })?;
-        let dir = base.join("swaybeam");
+        let dir = base.join("waycast");
         std::fs::create_dir_all(&dir)
             .map_err(|e| ExternalError::ConfigWriteFailed(e.to_string()))?;
         Ok(dir)
@@ -1046,7 +1046,7 @@ mod hyprland {
     // Two lines: owning pid, then output name. The pid is what makes
     // "stale" distinguishable from "in use" -- breadcrumbs deliberately
     // exist for the whole of a live session, so without an owner a second
-    // swaybeam starting up would read the first one's breadcrumb, conclude
+    // waycast starting up would read the first one's breadcrumb, conclude
     // it was leftover, and tear down the running session's output.
     fn write_output_breadcrumb(name: &str) -> Result<()> {
         let content = format!("{}\n{}\n", std::process::id(), name);
@@ -1098,14 +1098,14 @@ mod hyprland {
     pub(super) fn cleanup_stale() -> Result<()> {
         // A breadcrumb whose owner is still running is not stale -- it's a
         // live session's working state. Tearing that down (as this did
-        // unconditionally) meant starting a second swaybeam ripped the
+        // unconditionally) meant starting a second waycast ripped the
         // output out from under the first one mid-stream. Leave everything
         // alone in that case, including the portal config and marker, which
         // belong to that same running session.
         match read_output_breadcrumb() {
             Some((name, true)) => {
                 warn!(
-                    "Another swaybeam session is already running and owns virtual output \
+                    "Another waycast session is already running and owns virtual output \
                      '{}' -- skipping stale-state cleanup so it isn't torn down. Expect \
                      the two sessions to contend over the portal config.",
                     name
@@ -1125,7 +1125,9 @@ mod hyprland {
         let config_path = xdph_config_path();
         if let Some(content) = read_xdph_config(&config_path) {
             if let Some(stripped) = strip_managed_block(&content) {
-                info!("Found a stale swaybeam block in xdph.conf from a previous session; removing it");
+                info!(
+                    "Found a stale waycast block in xdph.conf from a previous session; removing it"
+                );
                 std::fs::write(&config_path, stripped)
                     .map_err(|e| ExternalError::ConfigWriteFailed(e.to_string()))?;
                 restart_portal();
@@ -1184,23 +1186,23 @@ mod hyprland {
     // `custom_picker_binary` configured (e.g. `hyprland-preview-share-picker`),
     // and falling through to the stock picker instead would be a real,
     // silent downgrade the one time this script's marker check *doesn't*
-    // fire for swaybeam (some other app's concurrent screen-share request).
+    // fire for waycast (some other app's concurrent screen-share request).
     fn picker_script(fallback_binary: &str) -> String {
         format!(
             r#"#!/bin/bash
-# Installed by swaybeam (crates/external, Hyprland backend). Do not hand-edit
-# -- swaybeam regenerates this file each time it sets up a virtual output.
-# Only answers non-interactively while swaybeam has a pending capture of its
+# Installed by waycast (crates/external, Hyprland backend). Do not hand-edit
+# -- waycast regenerates this file each time it sets up a virtual output.
+# Only answers non-interactively while waycast has a pending capture of its
 # own (the marker file below); every other screen-share/screenshot request
 # on this system falls through to the picker that was configured before
-# swaybeam ran ({fallback_binary}), so an existing custom picker doesn't get
+# waycast ran ({fallback_binary}), so an existing custom picker doesn't get
 # silently downgraded to the stock one.
-marker="${{XDG_RUNTIME_DIR:-/tmp}}/swaybeam-portal-target"
+marker="${{XDG_RUNTIME_DIR:-/tmp}}/waycast-portal-target"
 if [[ -r $marker ]]; then
     # Consume it: one marker answers exactly one portal request. Leaving it
     # in place for the whole session would silently redirect every
     # unrelated screen-share request (browser, OBS, any portal client) to
-    # swaybeam's output for as long as the stream ran. Removing it before
+    # waycast's output for as long as the stream ran. Removing it before
     # answering also means a crash between here and the reply can't leave a
     # live hijack armed.
     output=$(<"$marker")
@@ -1236,17 +1238,17 @@ exec {fallback_binary} "$@"
             .map_err(|_| {
                 ExternalError::ConfigWriteFailed("Neither $XDG_DATA_HOME nor $HOME is set".into())
             })?;
-        let dir = data_home.join("swaybeam");
+        let dir = data_home.join("waycast");
         std::fs::create_dir_all(&dir)
             .map_err(|e| ExternalError::ConfigWriteFailed(e.to_string()))?;
         Ok(dir.join(PICKER_SCRIPT_FILENAME))
     }
 
-    /// Best-effort scan of the (pre-swaybeam) xdph.conf for an existing
+    /// Best-effort scan of the (pre-waycast) xdph.conf for an existing
     /// `screencopy { custom_picker_binary = ... }` so our wrapper's fallback
     /// preserves it. Not a full hyprlang parser — just enough block/brace
     /// tracking for the shape hyprlang actually produces. Guards against the
-    /// pathological case of a prior swaybeam run's own wrapper still being
+    /// pathological case of a prior waycast run's own wrapper still being
     /// configured (e.g. after a crash that skipped cleanup): falling
     /// through to *itself* would exec-loop forever, so that value is
     /// rejected in favor of the real default.
@@ -1363,7 +1365,7 @@ exec {fallback_binary} "$@"
         Ok(())
     }
 
-    /// Removes swaybeam's block from xdph.conf, preserving everything else
+    /// Removes waycast's block from xdph.conf, preserving everything else
     /// as it stands *now*.
     ///
     /// Deliberately not "write back the snapshot taken at create time":
@@ -1396,7 +1398,7 @@ exec {fallback_binary} "$@"
                 // rewriting the stale snapshot over their file would lose
                 // whatever they changed.
                 warn!(
-                    "xdph.conf has no swaybeam block to remove; leaving it untouched \
+                    "xdph.conf has no waycast block to remove; leaving it untouched \
                      (it may have been edited during the session)"
                 );
                 return Ok(());
@@ -1404,7 +1406,7 @@ exec {fallback_binary} "$@"
         }
 
         restart_portal();
-        info!("Removed swaybeam's block from xdph.conf");
+        info!("Removed waycast's block from xdph.conf");
         Ok(())
     }
 
@@ -1453,9 +1455,9 @@ mod tests {
         // snapshot cleanup()'s normal path would otherwise use.
         let original = "screencopy {\n    allow_token_by_default = true\n    custom_picker_binary = hyprland-preview-share-picker\n}\n";
         let with_block = format!(
-            "{original}\n# --- swaybeam: managed block, restored on disconnect ---\n\
-             screencopy {{\n    custom_picker_binary = /home/user/.local/share/swaybeam/swaybeam-hyprland-picker.sh\n    allow_token_by_default = true\n}}\n\
-             # --- end swaybeam block ---\n"
+            "{original}\n# --- waycast: managed block, restored on disconnect ---\n\
+             screencopy {{\n    custom_picker_binary = /home/user/.local/share/waycast/waycast-hyprland-picker.sh\n    allow_token_by_default = true\n}}\n\
+             # --- end waycast block ---\n"
         );
 
         assert_eq!(
@@ -1469,9 +1471,9 @@ mod tests {
         // The "existing == None" case in write_xdph_config: the appended
         // block is the entire file. Stripping it should leave an empty
         // string, not a dangling blank line.
-        let with_block = "\n# --- swaybeam: managed block, restored on disconnect ---\n\
-             screencopy {\n    custom_picker_binary = /x/swaybeam-hyprland-picker.sh\n    allow_token_by_default = true\n}\n\
-             # --- end swaybeam block ---\n";
+        let with_block = "\n# --- waycast: managed block, restored on disconnect ---\n\
+             screencopy {\n    custom_picker_binary = /x/waycast-hyprland-picker.sh\n    allow_token_by_default = true\n}\n\
+             # --- end waycast block ---\n";
 
         assert_eq!(
             hyprland::strip_managed_block(with_block).as_deref(),
@@ -1482,7 +1484,7 @@ mod tests {
     #[test]
     fn strip_managed_block_absent_returns_none() {
         // The overwhelmingly common case: a session that tore down
-        // normally, or a file swaybeam never touched at all.
+        // normally, or a file waycast never touched at all.
         let clean = "screencopy {\n    max_fps = 30\n}\n";
         assert_eq!(hyprland::strip_managed_block(clean), None);
         assert_eq!(hyprland::strip_managed_block(""), None);
@@ -1491,7 +1493,7 @@ mod tests {
     #[test]
     fn original_picker_binary_missing_file_uses_default() {
         assert_eq!(
-            hyprland::original_picker_binary(None, Path::new("/x/swaybeam-hyprland-picker.sh")),
+            hyprland::original_picker_binary(None, Path::new("/x/waycast-hyprland-picker.sh")),
             "hyprland-share-picker"
         );
     }
@@ -1502,7 +1504,7 @@ mod tests {
         assert_eq!(
             hyprland::original_picker_binary(
                 Some(config),
-                Path::new("/x/swaybeam-hyprland-picker.sh")
+                Path::new("/x/waycast-hyprland-picker.sh")
             ),
             "hyprland-share-picker"
         );
@@ -1513,7 +1515,7 @@ mod tests {
         // The exact shape observed on a live install: a pre-existing
         // hyprland-preview-share-picker configuration. This must survive
         // as the fallback so a Miracast session doesn't quietly downgrade
-        // the user's picker for any request that isn't swaybeam's own.
+        // the user's picker for any request that isn't waycast's own.
         let config = "screencopy {\n    \
             allow_token_by_default = true\n    \
             custom_picker_binary = hyprland-preview-share-picker\n\
@@ -1521,7 +1523,7 @@ mod tests {
         assert_eq!(
             hyprland::original_picker_binary(
                 Some(config),
-                Path::new("/x/swaybeam-hyprland-picker.sh")
+                Path::new("/x/waycast-hyprland-picker.sh")
             ),
             "hyprland-preview-share-picker"
         );
@@ -1529,10 +1531,10 @@ mod tests {
 
     #[test]
     fn original_picker_binary_rejects_self_reference() {
-        // Guards the crash-recovery case: a prior swaybeam run's own
+        // Guards the crash-recovery case: a prior waycast run's own
         // wrapper is still configured (cleanup was skipped, e.g. by a -9).
         // Falling through to itself would exec-loop forever.
-        let own = Path::new("/home/user/.local/share/swaybeam/swaybeam-hyprland-picker.sh");
+        let own = Path::new("/home/user/.local/share/waycast/waycast-hyprland-picker.sh");
         let config = format!(
             "screencopy {{\n    custom_picker_binary = {}\n}}\n",
             own.display()

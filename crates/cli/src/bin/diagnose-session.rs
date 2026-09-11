@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use std::collections::HashMap;
 use std::io::{self, BufRead, Write};
 use std::time::{Duration, Instant};
-use swaybeam_rtsp::{NegotiatedCodec, RtspMessage, RtspSession, SessionState, WfdCapabilities};
+use waycast_rtsp::{NegotiatedCodec, RtspMessage, RtspSession, SessionState, WfdCapabilities};
 
 #[derive(Parser)]
 #[command(name = "diagnose-session")]

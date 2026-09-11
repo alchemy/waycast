@@ -1,22 +1,22 @@
-# Opencode Guidelines for swaybeam
+# Opencode Guidelines for waycast
 
-This file provides instructions for opencode (AI assistant) when assisting with the swaybeam project.
+This file provides instructions for opencode (AI assistant) when assisting with the waycast project.
 
 ## Overview
 
-swaybeam is a Miracast source implementation for wlroots-based Wayland compositors. It enables wireless display streaming from Linux systems to Miracast-compatible TVs, monitors, and projectors using Wi-Fi Direct.
+waycast is a Miracast source implementation for wlroots-based Wayland compositors. It enables wireless display streaming from Linux systems to Miracast-compatible TVs, monitors, and projectors using Wi-Fi Direct.
 
 ## Project Structure
 
 The project is organized as a Rust workspace with the following crates:
 
-- `swaybeam-doctor` - System capability checks and validation
-- `swaybeam-capture` - Screen capture via xdg-desktop-portal-wlr and PipeWire
-- `swaybeam-stream` - GStreamer video encoding pipeline
-- `swaybeam-net` - Wi-Fi Direct P2P networking
-- `swaybeam-rtsp` - WFD RTSP protocol implementation
-- `swaybeam-daemon` - Session orchestration
-- `swaybeam-cli` - Command-line interface
+- `waycast-doctor` - System capability checks and validation
+- `waycast-capture` - Screen capture via xdg-desktop-portal-wlr and PipeWire
+- `waycast-stream` - GStreamer video encoding pipeline
+- `waycast-net` - Wi-Fi Direct P2P networking
+- `waycast-rtsp` - WFD RTSP protocol implementation
+- `waycast-daemon` - Session orchestration
+- `waycast-cli` - Command-line interface
 
 ## When Assisting with Development
 
@@ -65,7 +65,7 @@ just pre-commit    # Pre-commit hooks
 ### 5. Release Process
 
 1. Update version in `Cargo.toml`
-2. Update `Cargo.lock`: `cargo update -p swaybeam`
+2. Update `Cargo.lock`: `cargo update -p waycast`
 3. Update changelog: `just update-changelog`
 4. Commit: `git commit -m "release: Version X.Y.Z"`
 5. Tag and release are automatic after merge to main
@@ -109,7 +109,7 @@ just debug daemon
 2. Create `Cargo.toml`:
    ```toml
    [package]
-   name = "swaybeam-new-crate"
+   name = "waycast-new-crate"
    version.workspace = true
    edition.workspace = true
 
@@ -226,7 +226,7 @@ When adding dependencies:
 
 ## Nix Flake
 
-swaybeam provides a `flake.nix` for building with Nix:
+waycast provides a `flake.nix` for building with Nix:
 
 ```bash
 # Build (production binary)
@@ -263,16 +263,16 @@ nix run . -- doctor
    - `gst-libav` — ffmpeg-based decoders/encoders
    - `gst-vaapi` — `vah264enc`, `vah265enc`
 2. Add the package to both `gstRuntimePlugins` (for `GST_PLUGIN_SYSTEM_PATH_1_0`) and `devShell` `buildInputs`.
-3. Verify with `string result/bin/.swaybeam-wrapped | grep GST_PLUGIN_SYSTEM_PATH_1_0`.
+3. Verify with `string result/bin/.waycast-wrapped | grep GST_PLUGIN_SYSTEM_PATH_1_0`.
 
 ### Common Nix Tasks
 
 ```bash
 # Build dependency artifacts only (fast iteration)
-nix build .#swaybeam
+nix build .#waycast
 
 # Rebuild from scratch
-nix build .#swaybeam --refresh
+nix build .#waycast --refresh
 
 # Enter development shell
 nix develop

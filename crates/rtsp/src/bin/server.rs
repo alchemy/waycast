@@ -1,4 +1,4 @@
-use swaybeam_rtsp::RtspServer; // Import from the crate with proper name
+use waycast_rtsp::RtspServer; // Import from the crate with proper name
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
