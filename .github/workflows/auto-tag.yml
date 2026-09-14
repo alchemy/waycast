@@ -1,0 +1,102 @@
+# Auto Tag Workflow
+#
+# Cargo.toml's version is the source of truth for what gets released. Push a
+# version bump to main and this tags it; the tag starts Release, and Release
+# starts AUR Publish. Nothing else needs editing to cut a release.
+#
+# Setup Requirements:
+# 1. A repository secret RELEASE_PAT: a fine-grained personal access token with
+#    "Contents: read and write" on this repository.
+#
+#    GITHUB_TOKEN cannot be used here. GitHub deliberately raises no
+#    workflow-triggering events for actions taken with it, so a tag pushed with
+#    it would appear and start nothing -- exactly how v0.6.0 released while the
+#    AUR stayed on 0.5.0. The job fails loudly rather than tagging silently
+#    into that dead end.
+#
+# Workflow Triggers:
+# - Any push to main. The job exits in seconds when the version is unchanged.
+#
+# Consequence worth knowing: a version bump merged to main IS a release, and
+# publishes to the AUR without further confirmation. To prepare a version
+# without releasing it, keep the bump on a branch.
+
+name: Auto Tag
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  tag:
+    name: Tag the workspace version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7
+        with:
+          # Tags are needed to tell an already-released version from a new one.
+          fetch-depth: 0
+
+      - name: Require the release token
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          if [ -z "$RELEASE_PAT" ]; then
+            echo "RELEASE_PAT is not set. A tag pushed with GITHUB_TOKEN starts" >&2
+            echo "no workflows, so tagging without it would produce a tag and no" >&2
+            echo "release. See this workflow's header." >&2
+            exit 1
+          fi
+
+      - name: Read the workspace version
+        id: version
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          if [ -z "$version" ]; then echo "no version in Cargo.toml" >&2; exit 1; fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+          echo "Cargo.toml declares ${version}"
+
+      - name: Stop if this version is already tagged
+        id: check
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "${TAG} already exists; nothing to do."
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A bump committed without its regenerated Cargo.lock builds fine here
+      # and fails in Release, which builds --locked. That would leave a tag
+      # with no release behind it, so check before tagging rather than after.
+      # `cargo metadata` reads the manifests without compiling anything.
+      - name: Check Cargo.lock matches the bump
+        if: steps.check.outputs.needed == 'true'
+        run: |
+          if ! cargo metadata --locked --format-version 1 >/dev/null; then
+            echo "Cargo.lock is out of step with Cargo.toml. Commit the lock" >&2
+            echo "alongside the version bump: cargo update --workspace" >&2
+            exit 1
+          fi
+
+      - name: Tag it
+        if: steps.check.outputs.needed == 'true'
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Annotated, matching the tags cut by hand so far.
+          git tag -a "$TAG" -m "Release ${VERSION}"
+          git remote set-url origin \
+            "https://x-access-token:${RELEASE_PAT}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "$TAG"
+          echo "Tagged ${TAG}; Release will pick it up."

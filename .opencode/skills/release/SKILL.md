@@ -164,20 +164,30 @@ Create a pull request to merge into main.
 
 ### Step 9: After Merge
 
-After the PR is merged to main, create and push a tag:
+Nothing. Merging the version bump to main is the release.
+
+The Auto Tag workflow reads the version from `Cargo.toml`, tags it, and that
+tag starts Release, which builds the archives and creates the GitHub Release.
+Release finishing starts AUR Publish, which updates `waycast-bin`.
+
+Do not tag by hand. A tag you push yourself works, but Auto Tag then finds the
+version already tagged and does nothing, so the two paths differ only in who
+gets the blame when something goes wrong.
+
+Watch it land:
 
 ```bash
-git tag v<VERSION> && git push origin v<VERSION>
+gh run list --workflow "Auto Tag" --limit 1
+gh release view "v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
 ```
-
-The CI workflow automatically builds release artifacts, creates a GitHub Release, and publishes to AUR.
 
 ## What NOT to Do
 
 | Mistake | Why it's wrong | Fix |
 |---------|---------------|-----|
 | Manually editing CHANGELOG.md | git-cliff generates it from conventional commits | Use `just update-changelog` |
-| Creating git tags manually in CI | Auto-tag workflow may conflict | Follow the process |
+| Creating git tags manually | Auto Tag already tags the version in Cargo.toml | Merge the bump and let it tag |
+| Bumping Cargo.toml without `Cargo.lock` | Release builds `--locked` and fails after the tag exists, leaving a tag with no release | `just update-version`, which runs `cargo update --workspace` |
 | Releasing from a feature branch | Changelog generation needs main commit IDs | Checkout main first |
 | Releasing with dirty working tree | Script will fail or produce incomplete release | Commit or stash changes first |
 | Skipping the unshallow check | Shallow clones produce incomplete changelogs | Always check and unshallow if needed |
