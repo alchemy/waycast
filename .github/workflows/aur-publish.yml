@@ -12,9 +12,18 @@
 #    - AUR_EMAIL:           email for the AUR commit author
 #
 # Workflow Triggers:
-# - A published, non-prerelease GitHub release.
+# - The Release workflow finishing successfully for a tag.
 # - Manual dispatch against a tag, for re-publishing packaging changes that
 #   do not warrant a new upstream version.
+#
+# NOT `release: published`, which is the obvious choice and does not work:
+# release.yml creates the release with GITHUB_TOKEN, and GitHub deliberately
+# does not raise workflow-triggering events for actions taken with that token.
+# The release appears, no AUR run starts, and nothing reports a failure --
+# which is exactly how v0.6.0 shipped while the AUR stayed on 0.5.0.
+#
+# Chaining off the Release workflow also means the archives are already built
+# and uploaded by the time this starts, rather than racing them.
 #
 # Everything runs in an Arch container rather than through a third-party
 # action, because this job holds a key with write access to the AUR package
@@ -23,39 +32,60 @@
 name: AUR Publish
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to publish packaging for (e.g. v0.5.0)"
+        description: "Tag to publish packaging for (e.g. v0.6.0)"
         required: true
 
 jobs:
   publish:
     name: waycast-bin
-    # Prereleases are for trying things out; the AUR is not.
-    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    # A Release run that failed, or ran for a branch rather than a tag, has
+    # nothing to publish.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event.workflow_run.conclusion == 'success' &&
+           startsWith(github.event.workflow_run.head_branch, 'v')) }}
     runs-on: ubuntu-latest
     container: archlinux:base-devel
 
     steps:
       - name: Install container dependencies
-        run: pacman -Sy --noconfirm --needed git openssh
-
-      - name: Checkout sources
-        uses: actions/checkout@v7
+        run: pacman -Sy --noconfirm --needed git openssh jq
 
       - name: Resolve the release being packaged
         id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          tag="${{ github.event.workflow_run.head_branch || inputs.tag }}"
           if [ -z "$tag" ]; then echo "no tag to publish" >&2; exit 1; fi
 
+          # Prereleases are for trying things out; the AUR is not. Read it from
+          # the release rather than guessing at the tag's shape.
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${tag}"
+          prerelease=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" "$api" | jq -r '.prerelease')
+          if [ "$prerelease" != "false" ]; then
+            echo "${tag} is a prerelease (or has no release); not publishing." >&2
+            exit 1
+          fi
+
           # AUR pkgver may not contain a hyphen and conventionally carries no
-          # leading v, so v0.5.0 becomes 0.5.0.
+          # leading v, so v0.6.0 becomes 0.6.0.
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "pkgver=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      # Explicitly the tag, not the default branch. A workflow_run checkout
+      # defaults to the default branch, which would package whatever main
+      # happens to hold rather than what was released.
+      - name: Checkout the tagged sources
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.release.outputs.tag }}
 
       - name: Take the checksums from the published archives
         id: sums
