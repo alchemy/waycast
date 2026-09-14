@@ -145,31 +145,36 @@ jobs:
           AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
           TAG: ${{ steps.release.outputs.tag }}
         run: |
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
-          chmod 600 ~/.ssh/aur
-
-          # Learn the server's host key and refuse to go on unless it is the
-          # one expected. This previously sent ssh-keyscan's errors to
-          # /dev/null and never checked its output, so a scan returning
-          # nothing left an empty known_hosts and the clone failed with a bare
-          # "Host key verification failed" -- an error about the server's
-          # identity, easily misread as a problem with our key.
+          # Absolute paths throughout, and handed to ssh explicitly.
           #
-          # Pinned rather than trusted-on-first-use: a scan accepts whatever
-          # answers, which is exactly what an attacker in the middle would
+          # `~` is not the same directory for the shell and for ssh: the shell
+          # expands it from $HOME, which the runner sets to /github/home,
+          # while OpenSSH expands it from the passwd entry, which for root in
+          # this container is /root. So writing ~/.ssh/known_hosts in a run
+          # step puts it somewhere ssh will never look, and the clone fails
+          # with "Host key verification failed" having just been told the host
+          # key is correct. Verified: ssh ignores a host key planted in $HOME
+          # and reads the passwd home instead.
+          ssh_dir="$(mktemp -d)"
+          trap 'rm -rf "$ssh_dir"' EXIT
+          chmod 700 "$ssh_dir"
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$ssh_dir/aur"
+          chmod 600 "$ssh_dir/aur"
+
+          # Pinned rather than trusted-on-first-use: a bare scan accepts
+          # whatever answers, which is what an attacker in the middle would
           # like. If the AUR rotates its key this fails loudly and the
           # fingerprint below needs updating.
           expected_hostkey="SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4"
 
-          ssh-keyscan -t ed25519 aur.archlinux.org > ~/.ssh/known_hosts
-          if [ ! -s ~/.ssh/known_hosts ]; then
+          ssh-keyscan -t ed25519 aur.archlinux.org > "$ssh_dir/known_hosts"
+          if [ ! -s "$ssh_dir/known_hosts" ]; then
             echo "ssh-keyscan returned no host key for aur.archlinux.org." >&2
             echo "Check outbound SSH from this runner." >&2
             exit 1
           fi
 
-          got_hostkey=$(ssh-keygen -lf ~/.ssh/known_hosts | awk '{print $2}')
+          got_hostkey=$(ssh-keygen -lf "$ssh_dir/known_hosts" | awk '{print $2}')
           if [ "$got_hostkey" != "$expected_hostkey" ]; then
             echo "aur.archlinux.org presented an unexpected host key." >&2
             echo "  got:      ${got_hostkey}" >&2
@@ -180,12 +185,9 @@ jobs:
           fi
           echo "Host key verified: ${got_hostkey}"
 
-          cat > ~/.ssh/config <<EOF
-          Host aur.archlinux.org
-            User aur
-            IdentityFile ~/.ssh/aur
-            IdentitiesOnly yes
-          EOF
+          # No ~/.ssh/config: every path ssh needs is given here, so nothing
+          # depends on which home directory it decides to use.
+          export GIT_SSH_COMMAND="ssh -i ${ssh_dir}/aur -o IdentitiesOnly=yes -o UserKnownHostsFile=${ssh_dir}/known_hosts -o StrictHostKeyChecking=yes"
 
           git clone ssh://aur@aur.archlinux.org/waycast-bin.git aur-repo
           cp packaging/aur/PKGBUILD packaging/aur/.SRCINFO packaging/aur/waycast.install aur-repo/
