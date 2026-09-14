@@ -2289,6 +2289,7 @@ dependencies = [
  "waycast-doctor",
  "waycast-external",
  "waycast-net",
+ "waycast-networkd",
  "waycast-rtsp",
  "waycast-stream",
 ]
@@ -2314,6 +2315,7 @@ dependencies = [
  "waycast-doctor",
  "waycast-external",
  "waycast-net",
+ "waycast-networkd",
  "waycast-rtsp",
  "waycast-stream",
  "zbus",
@@ -2346,6 +2348,21 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "zbus",
+ "zvariant",
+]
+
+[[package]]
+name = "waycast-networkd"
+version = "0.5.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "socket2",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "waycast-net",
  "zbus",
  "zvariant",
 ]

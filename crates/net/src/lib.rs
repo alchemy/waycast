@@ -9,6 +9,7 @@ use zbus::Connection;
     default_path = "/org/freedesktop/NetworkManager"
 )]
 trait NetworkManager {
+    async fn deactivate_connection(&self, active: zvariant::ObjectPath<'_>) -> zbus::Result<()>;
     async fn get_devices(&self) -> zbus::Result<Vec<zvariant::OwnedObjectPath>>;
     async fn get_device_by_ip_iface(&self, iface: &str) -> zbus::Result<zvariant::OwnedObjectPath>;
     async fn activate_connection(
@@ -202,9 +203,10 @@ pub enum NetError {
     PeerNotFound,
 }
 
-/// The address a Wi-Fi Display group owner is expected to hold, and the
-/// prefix of the group's subnet. Not a preference: sinks are built against
-/// this range.
+/// TCP control port advertised by this source in its WFD information elements.
+pub const SOURCE_RTSP_PORT: u16 = 7236;
+
+/// Group-owner IPv4 address used for sink interoperability.
 const WFD_GO_ADDRESS: &str = "192.168.49.1";
 const WFD_GO_PREFIX: u32 = 24;
 
@@ -213,6 +215,7 @@ pub struct P2pConnection {
     pub sink: Sink,
     pub interface: String,
     _dbus_connection: Connection,
+    active_path: Option<zvariant::OwnedObjectPath>,
 }
 
 #[derive(Debug, Clone)]
@@ -250,8 +253,37 @@ impl P2pManager {
 
     pub async fn new(config: P2pConfig) -> Result<Self, NetError> {
         let connection = Connection::system().await?;
+        Self::from_connection(config, connection).await
+    }
 
+    async fn from_connection(
+        mut config: P2pConfig,
+        connection: Connection,
+    ) -> Result<Self, NetError> {
         let nm_proxy = NetworkManagerProxy::new(&connection).await?;
+        if config.interface_name == "auto" {
+            let mut radios = Vec::new();
+            for path in nm_proxy.get_devices().await? {
+                let device = DeviceProxy::builder(&connection)
+                    .path(path)?
+                    .build()
+                    .await?;
+                if device.device_type().await? == 30 {
+                    if let Some(radio) = device.interface().await?.strip_prefix("p2p-dev-") {
+                        radios.push(radio.to_string());
+                    }
+                }
+            }
+            config.interface_name = match radios.as_slice() {
+                [radio] => radio.clone(),
+                [] => return Err(NetError::NoP2PDevice),
+                _ => {
+                    return Err(NetError::DeviceNotFound(
+                        "Multiple P2P radios are available; select one with --interface".into(),
+                    ))
+                }
+            };
+        }
 
         let mut instance = Self {
             config,
@@ -264,6 +296,11 @@ impl P2pManager {
         instance.find_p2p_device().await?;
 
         Ok(instance)
+    }
+
+    /// Actual physical radio selected, including resolution of `auto`.
+    pub fn radio(&self) -> &str {
+        &self.config.interface_name
     }
 
     pub async fn find_p2p_device(&mut self) -> Result<(), NetError> {
@@ -288,7 +325,10 @@ impl P2pManager {
                 device_type,
                 device_proxy.interface().await.unwrap_or_default()
             );
-            if device_type == 30 {
+            if device_type == 30
+                && device_proxy.interface().await?
+                    == format!("p2p-dev-{}", self.config.interface_name)
+            {
                 self.p2p_proxy = Some(
                     WifiP2PProxy::builder(&self.connection)
                         .path(device_path.clone())?
@@ -479,7 +519,49 @@ impl P2pManager {
         }))
     }
 
+    /// Resolve a currently discovered peer on this manager's selected radio.
+    pub async fn resolve_sink(&self, address: &str) -> Result<Sink, NetError> {
+        let p2p = self.p2p_proxy.as_ref().ok_or(NetError::NoP2PDevice)?;
+        for path in p2p.peers().await? {
+            if let Some(sink) = self.peer_to_sink(&path).await? {
+                if sink.address.eq_ignore_ascii_case(address) {
+                    return Ok(sink);
+                }
+            }
+        }
+        Err(NetError::PeerNotFound)
+    }
+
+    /// Legacy unmanaged connection, for library users that configure networking themselves.
     pub async fn connect(&self, sink: &Sink) -> Result<P2pConnection, NetError> {
+        self.connect_prepared(sink, false, |_, _| async { Ok(()) })
+            .await
+    }
+
+    /// Connect after preparing the validated group interface, before waiting for IP.
+    /// Requires supplicant events; unlike the legacy path, never trusts journal guesses.
+    pub async fn connect_with_prepare<F, Fut>(
+        &self,
+        sink: &Sink,
+        prepare: F,
+    ) -> Result<P2pConnection, NetError>
+    where
+        F: FnOnce(String, bool) -> Fut,
+        Fut: std::future::Future<Output = Result<(), NetError>>,
+    {
+        self.connect_prepared(sink, true, prepare).await
+    }
+
+    async fn connect_prepared<F, Fut>(
+        &self,
+        sink: &Sink,
+        strict: bool,
+        prepare: F,
+    ) -> Result<P2pConnection, NetError>
+    where
+        F: FnOnce(String, bool) -> Fut,
+        Fut: std::future::Future<Output = Result<(), NetError>>,
+    {
         let _p2p = self
             .p2p_proxy
             .as_ref()
@@ -509,12 +591,17 @@ impl P2pManager {
         // WFD Device Information Subelement (Wi-Fi Display spec Table 4)
         // Match GNOME Network Displays for LG/webOS interoperability.
         // Format: [Subelement ID] [Length] [Device Info: 2 bytes] [RTSP Port] [Throughput]
+        let source_port = SOURCE_RTSP_PORT.to_be_bytes();
         let wfd_ies: Vec<u8> = vec![
             0x00, // Subelement ID: WFD Device Information
-            0x00, 0x06, // Length: 6 bytes
-            0x00, 0x90, // Device Info: GNOME-compatible source capabilities
-            0x1C, 0x44, // RTSP Port: 7236 (big-endian)
-            0x00, 0xC8, // Max Throughput: 200 Mbps
+            0x00,
+            0x06, // Length: 6 bytes
+            0x00,
+            0x90, // Device Info: GNOME-compatible source capabilities
+            source_port[0],
+            source_port[1], // Source control port, big-endian
+            0x00,
+            0xC8, // Max Throughput: 200 Mbps
         ];
 
         // Which IPv4 method is right depends on the role the group ends up
@@ -601,6 +688,23 @@ impl P2pManager {
 
         tracing::debug!("Connection config: {:?}", connection_config);
 
+        // Install the subscription before activation, otherwise a fast group
+        // can emit GroupStarted before the waiter exists.
+        let wpa_proxy = match self.find_wpa_p2p_device_path().await {
+            Ok(path) => Some(
+                WpaP2PDeviceProxy::builder(&self.connection)
+                    .path(path)?
+                    .build()
+                    .await?,
+            ),
+            Err(e) if strict => return Err(e),
+            Err(_) => None,
+        };
+        let mut events = match wpa_proxy.as_ref() {
+            Some(proxy) => Some(proxy.receive_group_started().await?),
+            None => None,
+        };
+
         let (conn_path, active_conn_path, _) = self
             .nm_proxy
             .add_and_activate_connection2(
@@ -621,7 +725,32 @@ impl P2pManager {
         // The TV only keeps the P2P group alive briefly if RTSP negotiation does not start.
         // Prefer the wpa_supplicant group-start event so we can connect immediately.
         tracing::info!("Waiting for P2P group IP information...");
-        let group_started = self.wait_for_group_started().await;
+        let group_started = if let Some(ref mut events) = events {
+            tokio::time::timeout(Duration::from_secs(45), async {
+                while let Some(event) = events.next().await {
+                    if let Ok(args) = event.args() {
+                        if let Some(info) =
+                            self.parse_group_started_properties(&args.properties).await
+                        {
+                            return Some(info);
+                        }
+                    }
+                }
+                None
+            })
+            .await
+            .ok()
+            .flatten()
+        } else {
+            self.wait_for_group_started().await
+        };
+        if let Some(ref group) = group_started {
+            prepare(group.interface_name.clone(), group.is_group_owner()).await?;
+        } else if strict {
+            return Err(NetError::ConnectionFailed(
+                "No validated P2P group-start event".into(),
+            ));
+        }
 
         // If the negotiation made us the group owner, nothing is going to
         // hand us an address: the GO is the side that assigns them. Left as
@@ -683,6 +812,12 @@ impl P2pManager {
         let ready_interface = self
             .wait_for_p2p_interface_address(preferred_interface)
             .await;
+        if strict && ready_interface.as_ref().map(|(name, _)| name.as_str()) != preferred_interface
+        {
+            return Err(NetError::ConnectionFailed(
+                "P2P address does not belong to the activated group".into(),
+            ));
+        }
 
         let (ip_address, interface_name) = if let Some((interface_name, ip_address)) =
             ready_interface
@@ -736,6 +871,7 @@ impl P2pManager {
             sink: connected_sink,
             interface: interface_name,
             _dbus_connection: self.connection.clone(),
+            active_path: Some(active_conn_path),
         })
     }
 
@@ -864,8 +1000,8 @@ impl P2pManager {
             .ok()?;
         let interface_name = interface.Ifname().await.ok()?;
         let ip_address = self
-            .wait_for_p2p_interface_address(Some(&interface_name))
-            .await
+            .find_p2p_interface_address(Some(&interface_name))
+            .filter(|(name, _)| name == &interface_name)
             .map(|(_, address)| address);
 
         Some(GroupStartedInfo {
@@ -1067,6 +1203,10 @@ impl P2pManager {
             fallback.get_or_insert_with(|| (iface.to_string(), ip.to_string()));
         }
 
+        if preferred_interface.is_some() {
+            return None;
+        }
+
         if let Some((iface, ip)) = &fallback {
             tracing::debug!("Found fallback P2P IP on {}: {}", iface, ip);
         }
@@ -1117,6 +1257,49 @@ impl P2pManager {
 }
 
 impl P2pConnection {
+    /// Represent a helper-owned connection; the helper retains activation ownership.
+    pub fn managed(sink: Sink, interface: String, lifetime: Connection) -> Self {
+        Self {
+            sink,
+            interface,
+            _dbus_connection: lifetime,
+            active_path: None,
+        }
+    }
+
+    /// Whether NetworkManager still owns this activation (including activation in progress).
+    pub async fn is_active(&self) -> bool {
+        let Some(path) = &self.active_path else {
+            return false;
+        };
+        let Ok(proxy) = zbus::Proxy::new(
+            &self._dbus_connection,
+            "org.freedesktop.NetworkManager",
+            path.as_str(),
+            "org.freedesktop.NetworkManager.Connection.Active",
+        )
+        .await
+        else {
+            return false;
+        };
+        matches!(
+            tokio::time::timeout(Duration::from_secs(2), proxy.get_property::<u32>("State")).await,
+            Ok(Ok(1 | 2))
+        )
+    }
+
+    /// Explicitly deactivate an owned group. Dropping its dedicated D-Bus
+    /// connection also releases NetworkManager's bind-activation lease on crash.
+    pub async fn close(&self) -> Result<(), NetError> {
+        if let Some(path) = &self.active_path {
+            NetworkManagerProxy::new(&self._dbus_connection)
+                .await?
+                .deactivate_connection(path.as_ref())
+                .await?;
+        }
+        Ok(())
+    }
+
     pub fn get_sink(&self) -> &Sink {
         &self.sink
     }
@@ -1379,3 +1562,6 @@ mod tests {
         assert_eq!(format_ipv4(0xFFFFFFFF), "255.255.255.255");
     }
 }
+
+#[cfg(test)]
+mod managed_tests;

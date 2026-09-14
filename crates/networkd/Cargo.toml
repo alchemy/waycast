@@ -1,0 +1,20 @@
+[package]
+name = "waycast-networkd"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+waycast-net = { path = "../net" }
+anyhow.workspace = true
+tokio.workspace = true
+zbus.workspace = true
+zvariant.workspace = true
+serde.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+# Inspect passed socket descriptors without unsafe getsockopt calls.
+socket2 = "0.6"
+
+[[bin]]
+name = "waycast-networkd"
+path = "src/main.rs"

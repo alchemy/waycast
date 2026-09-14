@@ -57,7 +57,7 @@ impl Default for DaemonConfig {
             video_framerate: 30,
             video_bitrate: 8_000_000,
             discovery_timeout: Duration::from_secs(10),
-            interface: "wlan0".to_string(),
+            interface: "auto".to_string(),
             preferred_sink: None,
             force_client_mode: false,
             extend_mode: false,
@@ -65,6 +65,34 @@ impl Default for DaemonConfig {
             video_codec: None,
             external_resolution: None,
         }
+    }
+}
+
+struct NetworkAuthorizer(waycast_networkd::NetworkSessionRef);
+
+impl waycast_rtsp::TransportAuthorizer for NetworkAuthorizer {
+    fn authorize<'a>(
+        &'a self,
+        control: &'a TcpStream,
+        media: &'a waycast_rtsp::MediaTransport,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<(), waycast_rtsp::RtspError>> + Send + 'a>,
+    > {
+        Box::pin(async move {
+            self.0
+                .authorize_media(
+                    control,
+                    &media.rtp,
+                    &media.rtcp,
+                    media.destination_rtcp_port,
+                )
+                .await
+                .map_err(|e| {
+                    waycast_rtsp::RtspError::ProtocolViolation(format!(
+                        "Network authorization failed: {e}"
+                    ))
+                })
+        })
     }
 }
 
@@ -76,6 +104,7 @@ pub struct Daemon {
     stream: Arc<RwLock<Option<StreamPipeline>>>,
     hdcp_stream: Option<TcpStream>,
     connection: Option<P2pConnection>,
+    network_session: Option<waycast_networkd::NetworkSession>,
     rtsp_server: Option<RtspServer>,
     virtual_output: Option<VirtualOutput>,
     event_tx: mpsc::UnboundedSender<DaemonEvent>,
@@ -161,6 +190,7 @@ impl Daemon {
             stream: Arc::new(RwLock::new(None)),
             hdcp_stream: None,
             connection: None,
+            network_session: None,
             rtsp_server: None,
             virtual_output: None,
             session_end_tx,
@@ -482,14 +512,22 @@ impl Daemon {
     pub async fn connect(&mut self, sink: Sink) -> Result<(), NetError> {
         *self.state.write() = DaemonState::Connecting;
 
-        let config = P2pConfig {
-            interface_name: self.config.interface.clone(),
-            group_name: "waycast".to_string(),
-        };
-
-        let manager = P2pManager::new(config).await?;
-        let connection = manager.connect(&sink).await?;
-
+        let (session, connection) =
+            waycast_networkd::NetworkSession::begin(&self.config.interface, &sink)
+                .await
+                .map_err(|e| NetError::ConnectionFailed(e.to_string()))?;
+        let health = session.downgrade();
+        let session_end = self.session_end_tx.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                if !health.alive().await {
+                    let _ = session_end.send("Wireless display network session ended (helper, interface, or firewall changed)".into());
+                    break;
+                }
+            }
+        });
+        self.network_session = Some(session);
         self.connection = Some(connection);
         *self.state.write() = DaemonState::Negotiating;
 
@@ -595,16 +633,14 @@ impl Daemon {
     pub async fn disconnect(&mut self) -> Result<(), NetError> {
         *self.state.write() = DaemonState::Disconnecting;
 
-        if let Some(conn) = self.connection.take() {
-            self.hdcp_stream = None;
-            let config = P2pConfig {
-                interface_name: self.config.interface.clone(),
-                group_name: "waycast".to_string(),
-            };
-
-            let manager = P2pManager::new(config).await?;
-            manager.disconnect().await?;
-            info!("Disconnected from {}", conn.get_sink().name);
+        self.hdcp_stream = None;
+        // Drop the local view before releasing the helper's authoritative lease.
+        self.connection = None;
+        if let Some(session) = self.network_session.take() {
+            session
+                .end()
+                .await
+                .map_err(|e| NetError::ConnectionFailed(e.to_string()))?;
         }
 
         *self.state.write() = DaemonState::Idle;
@@ -833,26 +869,14 @@ impl Daemon {
         go_ip: &str,
         rtsp_port: u16,
     ) -> anyhow::Result<()> {
-        // Bind the P2P address specifically, never 0.0.0.0: this listener
-        // hands whoever connects the screen stream, so it must not be
-        // reachable from the ordinary LAN. Falling back to 0.0.0.0 only if
-        // the local P2P address is somehow unknown, which shouldn't happen
-        // once a connection exists.
+        // The inbound listener uses our advertised source port; the sink's
+        // advertised port is used only when dialing it in --client mode.
         let local_p2p_ip = self
             .connection
             .as_ref()
-            .and_then(|conn| conn.get_sink().ip_address.clone());
-
-        let bind_addr = match local_p2p_ip {
-            Some(ref ip) => format!("{}:{}", ip, rtsp_port),
-            None => {
-                warn!(
-                    "Local P2P address unknown; binding reverse RTSP on all interfaces, \
-                     which is reachable from the wider network"
-                );
-                format!("0.0.0.0:{}", rtsp_port)
-            }
-        };
+            .and_then(|conn| conn.get_sink().ip_address.as_deref())
+            .ok_or_else(|| anyhow::anyhow!("Cannot listen without the local P2P address"))?;
+        let bind_addr = format!("{}:{}", local_p2p_ip, waycast_net::SOURCE_RTSP_PORT);
 
         let mut rtsp_client =
             RtspClient::accept_reverse(&bind_addr, go_ip, rtsp_port, Duration::from_secs(15))
@@ -860,6 +884,9 @@ impl Daemon {
 
         let (idr_tx, mut idr_rx) = mpsc::unbounded_channel::<()>();
         rtsp_client.set_idr_channel(idr_tx);
+        if let Some(session) = &self.network_session {
+            rtsp_client.set_transport_authorizer(Arc::new(NetworkAuthorizer(session.downgrade())));
+        }
 
         let sink_caps = self.exchange_rtsp_capabilities(&mut rtsp_client).await?;
 
@@ -1740,6 +1767,9 @@ impl Daemon {
     ) -> anyhow::Result<()> {
         let (idr_tx, mut idr_rx) = mpsc::unbounded_channel::<()>();
         rtsp_client.set_idr_channel(idr_tx);
+        if let Some(session) = &self.network_session {
+            rtsp_client.set_transport_authorizer(Arc::new(NetworkAuthorizer(session.downgrade())));
+        }
 
         let sink_caps = self.exchange_rtsp_capabilities(&mut rtsp_client).await?;
 

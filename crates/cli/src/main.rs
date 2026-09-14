@@ -19,11 +19,9 @@ struct Cli {
     #[arg(long, global = true)]
     json: bool,
 
-    /// Wi-Fi interface for P2P/Wi-Fi Direct discovery and connections. If
-    /// discovery finds nothing, check `iw dev` -- the "wlan0" default is
-    /// the old kernel-numbered naming, and most current systems use
-    /// predictable names like "wlp0s20f3" instead.
-    #[arg(long, global = true, default_value = "wlan0")]
+    /// Wi-Fi radio for discovery and connection. Auto-selects when exactly one
+    /// P2P radio is available; use `iw dev` to choose on multi-radio systems.
+    #[arg(long, global = true, default_value = "auto")]
     interface: String,
 
     #[command(subcommand)]
@@ -242,7 +240,8 @@ async fn connect_command(sink_param: &str, interface: &str, json_output: bool) -
 
     match target {
         Some(device) => {
-            let connection = manager.connect(&device).await?;
+            let (session, connection) =
+                waycast_networkd::NetworkSession::begin(interface, &device).await?;
 
             if json_output {
                 let output = json!({
@@ -261,6 +260,7 @@ async fn connect_command(sink_param: &str, interface: &str, json_output: bool) -
                     println!("   IP: {}", ip);
                 }
             }
+            session.end().await?;
         }
         None => {
             if json_output {

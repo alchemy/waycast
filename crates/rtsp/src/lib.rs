@@ -1204,11 +1204,17 @@ pub struct SetupResult {
     pub timeout: u32,
 }
 
-/// RTSP client for connecting to Miracast sink when it is the Group Owner
-///
-/// Implements the client side of the RTSP/WFD protocol to connect to a Miracast sink
-/// that is serving RTSP requests when acting as the Group Owner in Wi-Fi Direct.
-/// This is necessary when connecting to certain TV models like LG that act as GO.
+/// Session firewall authorization callback, invoked before acknowledging SETUP.
+pub trait TransportAuthorizer: Send + Sync {
+    /// Complete firewall setup before SETUP advertises the reserved socket pair.
+    fn authorize<'a>(
+        &'a self,
+        control: &'a TcpStream,
+        media: &'a MediaTransport,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), RtspError>> + Send + 'a>>;
+}
+
+/// WFD request driver over an outbound or accepted RTSP control connection.
 pub struct RtspClient {
     server_addr: String,
     session_id: Option<String>,
@@ -1217,6 +1223,7 @@ pub struct RtspClient {
     peer_session: RtspSession,
     media_transport: Option<MediaTransport>,
     idr_tx: Option<tokio::sync::mpsc::UnboundedSender<()>>,
+    transport_authorizer: Option<std::sync::Arc<dyn TransportAuthorizer>>,
 }
 
 struct PeerRequestOutcome {
@@ -1266,7 +1273,16 @@ impl RtspClient {
             peer_session,
             media_transport: None,
             idr_tx: None,
+            transport_authorizer: None,
         })
+    }
+
+    /// Attach session firewall authorization. Library-only users may omit it.
+    pub fn set_transport_authorizer(
+        &mut self,
+        authorizer: std::sync::Arc<dyn TransportAuthorizer>,
+    ) {
+        self.transport_authorizer = Some(authorizer);
     }
 
     pub fn set_idr_channel(&mut self, tx: tokio::sync::mpsc::UnboundedSender<()>) {
@@ -1436,7 +1452,7 @@ impl RtspClient {
             .to_string()
     }
 
-    fn build_peer_request_response(
+    async fn build_peer_request_response(
         &mut self,
         request: &str,
     ) -> Result<PeerRequestOutcome, RtspError> {
@@ -1493,6 +1509,16 @@ impl RtspClient {
                 }
                 let media = self.media_transport.as_mut().expect("reserved transport");
                 media.destination_rtcp_port = rtcp_port;
+                if let Some(authorizer) = &self.transport_authorizer {
+                    authorizer
+                        .authorize(
+                            self.stream.as_ref().ok_or_else(|| {
+                                RtspError::ProtocolViolation("No control socket".into())
+                            })?,
+                            media,
+                        )
+                        .await?;
+                }
                 let response = self.peer_session.process_setup_with_ports(
                     transport,
                     (
@@ -1569,7 +1595,7 @@ impl RtspClient {
                 self.server_addr,
                 message
             );
-            let outcome = self.build_peer_request_response(&message)?;
+            let outcome = self.build_peer_request_response(&message).await?;
             let stream = self
                 .stream
                 .as_mut()
@@ -1619,7 +1645,7 @@ impl RtspClient {
                         .next()
                         .is_some_and(|line| line.starts_with("TEARDOWN"));
 
-                    match self.build_peer_request_response(&message) {
+                    match self.build_peer_request_response(&message).await {
                         Ok(outcome) => {
                             if outcome.idr_requested {
                                 if let Some(ref tx) = self.idr_tx {
@@ -1961,7 +1987,7 @@ impl RtspClient {
                 self.server_addr,
                 message
             );
-            let response = self.build_peer_request_response(&message)?;
+            let response = self.build_peer_request_response(&message).await?;
             tracing::debug!(
                 "Sending RTSP response to peer request on {}:\n{}",
                 self.server_addr,
@@ -2789,6 +2815,40 @@ mod media_transport_tests {
         assert!(std::net::UdpSocket::bind(rtcp).is_ok());
     }
 
+    struct RejectMedia;
+    impl TransportAuthorizer for RejectMedia {
+        fn authorize<'a>(
+            &'a self,
+            _control: &'a TcpStream,
+            media: &'a MediaTransport,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), RtspError>> + Send + 'a>>
+        {
+            Box::pin(async move {
+                assert!(
+                    std::net::UdpSocket::bind(media.rtp.local_addr()?).is_err(),
+                    "ports must already be reserved"
+                );
+                Err(RtspError::ProtocolViolation("firewall rejected".into()))
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn setup_does_not_acknowledge_ports_if_authorization_fails() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let peer = TcpStream::connect(listener.local_addr().unwrap())
+            .await
+            .unwrap();
+        let (socket, _) = listener.accept().await.unwrap();
+        let mut client =
+            RtspClient::from_stream(peer.local_addr().unwrap().to_string(), socket).unwrap();
+        client.set_transport_authorizer(std::sync::Arc::new(RejectMedia));
+        let result = client.build_peer_request_response("SETUP rtsp://127.0.0.1/wfd1.0 RTSP/1.0\r\nCSeq: 1\r\nTransport: RTP/AVP/UDP;unicast;client_port=19000-19007\r\n\r\n").await;
+        assert!(
+            matches!(result, Err(RtspError::ProtocolViolation(message)) if message == "firewall rejected")
+        );
+    }
+
     #[tokio::test]
     async fn setup_advertises_reserved_ports_and_preserves_rtcp_destination() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -2798,7 +2858,7 @@ mod media_transport_tests {
         let (socket, _) = listener.accept().await.unwrap();
         let mut client =
             RtspClient::from_stream(peer.local_addr().unwrap().to_string(), socket).unwrap();
-        let result = client.build_peer_request_response("SETUP rtsp://127.0.0.1/wfd1.0 RTSP/1.0\r\nCSeq: 1\r\nTransport: RTP/AVP/UDP;unicast;client_port=19000-19007\r\n\r\n").unwrap();
+        let result = client.build_peer_request_response("SETUP rtsp://127.0.0.1/wfd1.0 RTSP/1.0\r\nCSeq: 1\r\nTransport: RTP/AVP/UDP;unicast;client_port=19000-19007\r\n\r\n").await.unwrap();
         let media = client.media_transport.as_ref().unwrap();
         assert!(result.response.contains(&format!(
             "server_port={}-{}",

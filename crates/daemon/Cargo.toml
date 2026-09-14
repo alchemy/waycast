@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+waycast-networkd = { path = "../networkd" }
 waycast-doctor = { path = "../doctor" }
 waycast-capture = { path = "../capture", features = ["real_portal"] }
 waycast-stream = { path = "../stream" }

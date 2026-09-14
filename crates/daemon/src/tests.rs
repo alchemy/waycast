@@ -54,7 +54,7 @@ mod tests {
         assert_eq!(config.video_framerate, 30);
         assert_eq!(config.video_bitrate, 8_000_000);
         assert_eq!(config.discovery_timeout, Duration::from_secs(10));
-        assert_eq!(config.interface, "wlan0");
+        assert_eq!(config.interface, "auto");
     }
 
     #[tokio::test]

@@ -7,6 +7,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Manage Omarchy/UFW casting sessions through a privileged networking helper, with passwordless local-desktop authorization after installation, scoped DHCP/RTSP/RTCP allowances, and cleanup on disconnect or caller loss.
+- Validate the selected radio and prepare the group firewall before address configuration; authorize reserved media sockets before acknowledging RTSP SETUP.
+
+### Documentation
+
+- Document networking requirements for mirror, extend, audio, P2P roles, RTSP directions, dynamic media ports, and unsupported deployment scenarios.
+
 ### Fixed
 
 - Provide persistent Wi-Fi Direct PC identity configuration for automatic full-screen sharing on LG webOS, with an Arch Linux systemd service example.

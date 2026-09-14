@@ -20,6 +20,9 @@ cd waycast
 # Build
 just build
 
+# Install automatic networking once (Omarchy/UFW; administrator access)
+sudo python3 contrib/networkd/install.py
+
 # Check system readiness
 just doctor
 
@@ -31,6 +34,11 @@ just daemon
 
 ## Requirements
 
+See [Networking requirements](docs/networking.md) for mirror/extend use cases,
+Wi-Fi Direct roles, DHCP, negotiated ports, routing, and diagnostics.
+The [networking helper](docs/network-helper.md) installs once and manages
+temporary P2P firewall allowances without password prompts when casting.
+
 | Component | Why Needed | Install (Arch) |
 |-----------|-----------|----------------|
 | Sway/River/Labwc/Hyprland | wlroots-based Wayland compositor | `sway` / `river` / `labwc` / `hyprland` |
@@ -38,6 +46,7 @@ just daemon
 | PipeWire | Audio/video handling | `pipewire wireplumber` |
 | GStreamer | H.264/H.265 encoding | `gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav` |
 | NetworkManager | P2P connection management | `networkmanager` |
+| UFW, Polkit, waycast-networkd | Automatic session networking (Omarchy) | See [helper installation](docs/network-helper.md#installation) |
 | xdg-desktop-portal-wlr | Screen capture (Sway/River/Labwc) | `xdg-desktop-portal-wlr` |
 | xdg-desktop-portal-hyprland | Screen capture (Hyprland) | `xdg-desktop-portal-hyprland` |
 | just | Command runner (optional) | `just` |
@@ -419,62 +428,14 @@ sudo pacman -S gst-plugins-ugly
 sudo apt install gstreamer1.0-plugins-ugly
 ```
 
-### "NetworkManager error: No IP address assigned"
+### P2P, DHCP, RTSP, or media connection failures
 
-The P2P group formed with waycast as the **group owner**, which is the side
-that hands addresses out rather than receiving one. waycast reconfigures
-NetworkManager to `ipv4.method=shared` when this happens, so it assigns its own
-address and serves DHCP to the sink -- but that only works if inbound DHCP is
-permitted on the p2p interface. See the firewall note above.
-
-Which side owns the group is decided at random when both default to GO intent
-7, and neither end is settable here: wpa_supplicant's D-Bus interface is
-root-only, and NetworkManager exposes no GO-intent property. Sinks differ --
-an LG webOS TV always took the role itself and supplied addresses through the
-P2P IP Address Allocation extension; a Samsung takes it about one time in four
-and implements no allocation extension at all. So a sink that "sometimes"
-pairs is expected behaviour rather than a flake.
-
-```bash
-journalctl -u wpa_supplicant --since '2 min ago' | grep P2P-GROUP-STARTED
-#   ... client ... ip_addr=192.168.49.10   -> sink is GO and allocates
-#   ... client ... (no ip_addr)            -> sink is GO, expects DHCP
-#   ... GO ...                             -> we are GO; we serve DHCP
-```
-
-### Sink connects, then drops after a few seconds
-
-Almost always host configuration rather than waycast. Miracast has the *sink*
-open a TCP connection back to the source, so port 7236 has to be reachable and
-the Wi-Fi Direct interface must not be filtered. Both are blocked by default on
-a typical Arch install, and the failure is silent -- the TV simply never gets a
-reply.
-
-```bash
-# Firewall -- check EVERY table with an input hook, they stack and all of
-# them must accept. A ufw rule does not help if /etc/nftables.conf has its
-# own `inet filter` chain with `policy drop`, and vice versa.
-sudo ufw allow 7236/tcp                  # `systemctl is-active ufw` reporting
-                                         # "inactive" does NOT mean its rules
-                                         # are unloaded
-sudo nft list ruleset | grep -E 'chain input|dport|policy'
-
-# nftables: both of these belong in the input chain
-#   tcp dport 7236 accept
-#   iifname "p2p-*" udp dport 67 accept
-#
-# The second is needed because the P2P role is not ours to choose. When the
-# negotiation makes waycast the group owner it becomes the DHCP *server*
-# for the sink, and the sink's DHCPDISCOVER arrives on the p2p interface.
-# Dropped, dnsmasq offers leases nobody asks for and RTSP times out waiting
-# for a sink that has no address. Interface-scoped, not subnet-scoped:
-# NetworkManager's shared mode picks its own range.
-
-# Reverse-path filtering drops P2P packets before any firewall rule sees them
-sudo sysctl -w net.ipv4.conf.all.rp_filter=2
-sudo sysctl -w net.ipv4.conf.default.rp_filter=2
-nstat -az | grep IPReversePathFilter     # climbing? this is your problem
-```
+See the [networking diagnostic sequence](docs/networking.md#read-only-diagnostic-sequence)
+and [connection/firewall requirements](docs/networking.md#connections-and-firewall-policy).
+The host may either serve or receive DHCP depending on the negotiated Wi-Fi Direct
+role. Normal sessions accept inbound RTSP, usually on TCP 7236, and send media to
+negotiated UDP ports; source RTP/RTCP ports are allocated dynamically. Check the
+actual P2P interface, routes and negotiated ports before changing firewall rules.
 
 ### "Portal request was cancelled by user"
 
@@ -521,6 +482,11 @@ exec_always --no-startup-id systemctl --user restart xdg-desktop-portal.service 
     Doctor  Capture  Stream   Net   RTSP
     (check) (screen) (encode) (P2P) (WFD)
 ```
+
+Discovery runs in the application. The daemon delegates P2P activation and
+temporary firewall allowances to the privileged `waycast-networkd` service over
+the system bus. See [automatic networking](docs/network-helper.md) for the
+privilege boundary and session cleanup behavior.
 
 ## Status
 

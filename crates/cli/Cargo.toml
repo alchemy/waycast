@@ -20,6 +20,7 @@ name = "diagnose-session"
 path = "src/bin/diagnose-session.rs"
 
 [dependencies]
+waycast-networkd = { path = "../networkd" }
 waycast-daemon = { path = "../daemon" }
 waycast-net = { path = "../net" }
 waycast-rtsp = { path = "../rtsp" }

@@ -41,3 +41,6 @@
 *.temp
 tmp/
 temp/
+
+# Python installer/test bytecode
+__pycache__/

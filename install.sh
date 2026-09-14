@@ -15,7 +15,7 @@ fi
 # Detect distro and install dependencies
 if command -v pacman &> /dev/null; then
     echo "Detected Arch Linux"
-    sudo pacman -S --needed --noconfirm \
+    sudo pacman -S --needed --noconfirm ufw polkit python \
         gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly \
         pipewire wireplumber networkmanager wpa_supplicant \
         xdg-desktop-portal xdg-desktop-portal-wlr
@@ -46,6 +46,14 @@ cargo build --release
 # Install binary
 echo "Installing binary to /usr/local/bin/waycast"
 sudo cp target/release/waycast /usr/local/bin/
+
+# The initial supported managed-firewall target is Omarchy/Arch with UFW.
+if command -v pacman &> /dev/null && test -f /etc/ufw/before.rules; then
+    sudo python3 contrib/networkd/install.py
+else
+    echo "Automatic networking currently requires the Omarchy/UFW integration."
+    echo "See docs/network-helper.md before starting a casting session."
+fi
 
 echo ""
 echo "=== Installation Complete ==="

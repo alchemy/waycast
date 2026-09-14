@@ -4,6 +4,7 @@ members = [
     "crates/capture",
     "crates/stream",
     "crates/net",
+    "crates/networkd",
     "crates/rtsp",
     "crates/daemon",
     "crates/cli",

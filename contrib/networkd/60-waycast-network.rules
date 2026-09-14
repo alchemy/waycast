@@ -1,0 +1,7 @@
+// Installed by the Omarchy integration. The helper independently validates the
+// P2P radio, discovered sink, interface identity and passed socket descriptors.
+polkit.addRule(function(action, subject) {
+    if (action.id === "org.waycast.network.configure" && subject.local && subject.active) {
+        return polkit.Result.YES;
+    }
+});

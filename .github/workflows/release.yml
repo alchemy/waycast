@@ -80,7 +80,7 @@ jobs:
       # --locked so a release is built from the committed Cargo.lock rather
       # than whatever resolves on the day.
       - name: Build
-        run: cargo build --release --locked --bin waycast
+        run: cargo build --release --locked --bin waycast --bin waycast-networkd
 
       - name: Package
         id: package
@@ -91,9 +91,12 @@ jobs:
           fi
           name="waycast-${version}-linux-${{ matrix.arch }}"
 
-          strip target/release/waycast
-          mkdir -p "dist/${name}"
-          cp target/release/waycast "dist/${name}/"
+          strip target/release/waycast target/release/waycast-networkd
+          mkdir -p "dist/${name}/contrib/networkd" "dist/${name}/docs"
+          cp target/release/waycast target/release/waycast-networkd "dist/${name}/"
+          cp contrib/networkd/install.py contrib/networkd/*.service contrib/networkd/*.conf \
+            contrib/networkd/*.policy contrib/networkd/*.rules "dist/${name}/contrib/networkd/"
+          cp docs/network-helper.md docs/networking.md "dist/${name}/docs/"
           cp LICENSE README.md "dist/${name}/"
           tar -C dist -czf "dist/${name}.tar.gz" "${name}"
           ( cd dist && sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256" )
@@ -140,6 +143,7 @@ jobs:
             echo '```bash'
             echo "tar xzf waycast-${GITHUB_REF_NAME}-linux-\$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz"
             echo "install -Dm755 waycast-*/waycast ~/.local/bin/waycast"
+            echo '(cd waycast-*-linux-* && sudo python3 contrib/networkd/install.py --binary ./waycast-networkd)'
             echo 'waycast doctor'
             echo '```'
             echo
