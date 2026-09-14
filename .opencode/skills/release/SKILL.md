@@ -195,6 +195,24 @@ gh release view "v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
 
 ## Troubleshooting
 
+### The release published but the AUR did not update
+
+Re-pushing to main will not retry it. Release sees the version already
+tagged, sets `publish=false`, and skips the build, the release and the AUR
+job — which GitHub renders as a green run, not a skipped one.
+
+Retry the AUR alone, against the tag that was released:
+
+```bash
+gh workflow run "AUR Publish" --ref main -f tag=v<VERSION>
+gh run watch "$(gh run list --workflow "AUR Publish" --limit 1 --json databaseId -q '.[0].databaseId')"
+```
+
+It packages that tag's `packaging/aur/` and the archives already attached to
+its release, so it is safe to run repeatedly: an unchanged package reports
+"already matches" and exits without committing.
+
+
 ### "There are commits ahead of origin/main"
 Merge or push them first before starting the release.
 
