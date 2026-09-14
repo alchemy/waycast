@@ -1,20 +1,20 @@
 [workspace]
 members = [
-    "crates/doctor",
-    "crates/capture",
-    "crates/stream",
-    "crates/net",
-    "crates/networkd",
-    "crates/rtsp",
-    "crates/daemon",
-    "crates/cli",
-    "crates/audio",
-    "crates/external",
+  "crates/doctor",
+  "crates/capture",
+  "crates/stream",
+  "crates/net",
+  "crates/networkd",
+  "crates/rtsp",
+  "crates/daemon",
+  "crates/cli",
+  "crates/audio",
+  "crates/external",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 license = "MIT"
 authors = ["waycast contributors"]
