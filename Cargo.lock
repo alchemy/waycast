@@ -2242,7 +2242,7 @@ dependencies = [
 
 [[package]]
 name = "waycast-audio"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "thiserror",
@@ -2253,7 +2253,7 @@ dependencies = [
 
 [[package]]
 name = "waycast-capture"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "env_logger",
@@ -2273,7 +2273,7 @@ dependencies = [
 
 [[package]]
 name = "waycast-cli"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -2296,7 +2296,7 @@ dependencies = [
 
 [[package]]
 name = "waycast-daemon"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "aes",
  "anyhow",
@@ -2323,7 +2323,7 @@ dependencies = [
 
 [[package]]
 name = "waycast-doctor"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "thiserror",
@@ -2331,7 +2331,7 @@ dependencies = [
 
 [[package]]
 name = "waycast-external"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "serde_json",
@@ -2342,7 +2342,7 @@ dependencies = [
 
 [[package]]
 name = "waycast-net"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "futures-util",
  "thiserror",
@@ -2354,7 +2354,7 @@ dependencies = [
 
 [[package]]
 name = "waycast-networkd"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "serde",
@@ -2369,7 +2369,7 @@ dependencies = [
 
 [[package]]
 name = "waycast-rtsp"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "parking_lot",
@@ -2383,7 +2383,7 @@ dependencies = [
 
 [[package]]
 name = "waycast-stream"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "anyhow",
  "gio",
