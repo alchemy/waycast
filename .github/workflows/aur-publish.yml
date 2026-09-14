@@ -12,18 +12,16 @@
 #    - AUR_EMAIL:           email for the AUR commit author
 #
 # Workflow Triggers:
-# - The Release workflow finishing successfully for a tag.
+# - Called by the Release workflow once it has published a release.
 # - Manual dispatch against a tag, for re-publishing packaging changes that
 #   do not warrant a new upstream version.
 #
-# NOT `release: published`, which is the obvious choice and does not work:
-# release.yml creates the release with GITHUB_TOKEN, and GitHub deliberately
-# does not raise workflow-triggering events for actions taken with that token.
-# The release appears, no AUR run starts, and nothing reports a failure --
-# which is exactly how v0.6.0 shipped while the AUR stayed on 0.5.0.
-#
-# Chaining off the Release workflow also means the archives are already built
-# and uploaded by the time this starts, rather than racing them.
+# Release calls this directly rather than chaining on an event. Every attempt
+# to infer which tag to package from an event payload has been wrong: the
+# `release: published` event never fires because release.yml creates the
+# release with GITHUB_TOKEN, and a workflow_run payload names the branch the
+# run started from -- which, now that Release tags the version itself, is
+# "main". Being handed the tag removes the guessing.
 #
 # Everything runs in an Arch container rather than through a third-party
 # action, because this job holds a key with write access to the AUR package
@@ -32,24 +30,22 @@
 name: AUR Publish
 
 on:
-  workflow_run:
-    workflows: ["Release"]
-    types: [completed]
+  workflow_call:
+    inputs:
+      tag:
+        description: "Tag to publish packaging for (e.g. v0.6.0)"
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       tag:
         description: "Tag to publish packaging for (e.g. v0.6.0)"
         required: true
+        type: string
 
 jobs:
   publish:
     name: waycast-bin
-    # A Release run that failed, or ran for a branch rather than a tag, has
-    # nothing to publish.
-    if: >-
-      ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event.workflow_run.conclusion == 'success' &&
-           startsWith(github.event.workflow_run.head_branch, 'v')) }}
     runs-on: ubuntu-latest
     container: archlinux:base-devel
 
@@ -62,7 +58,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${{ github.event.workflow_run.head_branch || inputs.tag }}"
+          tag="${{ inputs.tag }}"
           if [ -z "$tag" ]; then echo "no tag to publish" >&2; exit 1; fi
 
           # Prereleases are for trying things out; the AUR is not. Read it from
@@ -79,9 +75,10 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "pkgver=${tag#v}" >> "$GITHUB_OUTPUT"
 
-      # Explicitly the tag, not the default branch. A workflow_run checkout
-      # defaults to the default branch, which would package whatever main
-      # happens to hold rather than what was released.
+      # Explicitly the tag. A called workflow checks out the caller's ref,
+      # which for the usual path is main -- so without this it would package
+      # whatever main holds now rather than what was released, and those
+      # differ the moment anything lands after the bump.
       - name: Checkout the tagged sources
         uses: actions/checkout@v7
         with:

@@ -33,8 +33,8 @@
 #   tests fail will still publish binaries. That is a deliberate trade for a
 #   simple, predictable trigger; if it matters, gate this on rust.yml the way
 #   aur-publish.yml does, with `on: workflow_run`.
-# - aur-publish.yml chains off THIS workflow completing, via workflow_run,
-#   which is not subject to the GITHUB_TOKEN restriction above.
+# - aur-publish.yml is called by this workflow as a final job, and is handed
+#   the version rather than inferring it from an event payload.
 #
 # Notes on what these archives are, and are not:
 # - The binary is dynamically linked against GStreamer, PipeWire and glib.
@@ -242,3 +242,12 @@ jobs:
             --notes-file "$notes" \
             --verify-tag \
             dist/*.tar.gz dist/*.sha256
+
+  aur:
+    name: AUR
+    needs: [prepare, release]
+    if: ${{ needs.prepare.outputs.publish == 'true' }}
+    uses: ./.github/workflows/aur-publish.yml
+    with:
+      tag: ${{ needs.prepare.outputs.version }}
+    secrets: inherit
