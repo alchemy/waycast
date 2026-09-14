@@ -1,0 +1,149 @@
+# AUR Publish Workflow
+#
+# Pushes packaging/aur/ to the AUR as waycast-bin whenever a release is
+# published, pinned to the archives that release actually carries.
+#
+# Setup Requirements:
+# 1. An SSH key whose public half is on an AUR account that co-maintains
+#    waycast-bin (AUR accepts several keys, one per line).
+# 2. Repository secrets:
+#    - AUR_SSH_PRIVATE_KEY: the private half of that key
+#    - AUR_USERNAME:        name for the AUR commit author
+#    - AUR_EMAIL:           email for the AUR commit author
+#
+# Workflow Triggers:
+# - A published, non-prerelease GitHub release.
+# - Manual dispatch against a tag, for re-publishing packaging changes that
+#   do not warrant a new upstream version.
+#
+# Everything runs in an Arch container rather than through a third-party
+# action, because this job holds a key with write access to the AUR package
+# and the work it does is a dozen lines of shell.
+
+name: AUR Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish packaging for (e.g. v0.5.0)"
+        required: true
+
+jobs:
+  publish:
+    name: waycast-bin
+    # Prereleases are for trying things out; the AUR is not.
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+
+    steps:
+      - name: Install container dependencies
+        run: pacman -Sy --noconfirm --needed git openssh
+
+      - name: Checkout sources
+        uses: actions/checkout@v7
+
+      - name: Resolve the release being packaged
+        id: release
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          if [ -z "$tag" ]; then echo "no tag to publish" >&2; exit 1; fi
+
+          # AUR pkgver may not contain a hyphen and conventionally carries no
+          # leading v, so v0.5.0 becomes 0.5.0.
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "pkgver=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Take the checksums from the published archives
+        id: sums
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+
+          # The release event can arrive a moment before the uploads settle,
+          # so give the assets a little room rather than failing the run.
+          fetch_sum() {
+            local url="$1" i out
+            for i in $(seq 1 10); do
+              if out=$(curl -fsSL "$url" 2>/dev/null); then
+                printf '%s' "$out" | cut -d' ' -f1
+                return 0
+              fi
+              sleep 6
+            done
+            echo "asset never appeared: $url" >&2
+            return 1
+          }
+
+          {
+            echo "amd64=$(fetch_sum "${base}/waycast-${TAG}-linux-amd64.tar.gz.sha256")"
+            echo "arm64=$(fetch_sum "${base}/waycast-${TAG}-linux-arm64.tar.gz.sha256")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Render the PKGBUILD for this release
+        env:
+          PKGVER: ${{ steps.release.outputs.pkgver }}
+          SHA_AMD64: ${{ steps.sums.outputs.amd64 }}
+          SHA_ARM64: ${{ steps.sums.outputs.arm64 }}
+        run: |
+          cd packaging/aur
+          # pkgrel counts packaging revisions of one upstream version, so a
+          # new pkgver resets it.
+          sed -i \
+            -e "s/^pkgver=.*/pkgver=${PKGVER}/" \
+            -e "s/^pkgrel=.*/pkgrel=1/" \
+            -e "s/^sha256sums_x86_64=.*/sha256sums_x86_64=('${SHA_AMD64}')/" \
+            -e "s/^sha256sums_aarch64=.*/sha256sums_aarch64=('${SHA_ARM64}')/" \
+            PKGBUILD
+
+          grep -E '^(pkgver|pkgrel|sha256sums_)' PKGBUILD
+
+      - name: Generate .SRCINFO
+        run: |
+          # makepkg refuses to run as root, and the AUR rejects a push whose
+          # .SRCINFO disagrees with its PKGBUILD, so this cannot be skipped.
+          useradd -m builder
+          chown -R builder packaging/aur
+          su builder -c 'cd packaging/aur && makepkg --printsrcinfo > .SRCINFO'
+          head -5 packaging/aur/.SRCINFO
+
+      - name: Publish to the AUR
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
+          AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan -t rsa,ed25519 aur.archlinux.org >> ~/.ssh/known_hosts 2>/dev/null
+          cat > ~/.ssh/config <<EOF
+          Host aur.archlinux.org
+            User aur
+            IdentityFile ~/.ssh/aur
+            IdentitiesOnly yes
+          EOF
+
+          git clone ssh://aur@aur.archlinux.org/waycast-bin.git aur-repo
+          cp packaging/aur/PKGBUILD packaging/aur/.SRCINFO packaging/aur/waycast.install aur-repo/
+
+          cd aur-repo
+          git config user.name "$AUR_USERNAME"
+          git config user.email "$AUR_EMAIL"
+          git add -A
+
+          # Re-running a tag that points at the same commit produces an
+          # identical package, and the AUR rejects empty commits. That is a
+          # no-op worth reporting, not a failure.
+          if git diff --cached --quiet; then
+            echo "AUR package already matches ${TAG}; nothing to publish."
+            exit 0
+          fi
+
+          git commit -m "waycast-bin ${TAG}"
+          git push origin master
