@@ -166,18 +166,17 @@ Create a pull request to merge into main.
 
 Nothing. Merging the version bump to main is the release.
 
-The Auto Tag workflow reads the version from `Cargo.toml`, tags it, and that
-tag starts Release, which builds the archives and creates the GitHub Release.
-Release finishing starts AUR Publish, which updates `waycast-bin`.
+The Release workflow reads the version from `Cargo.toml`, tags it, builds the
+archives and creates the GitHub Release. Release finishing starts AUR Publish,
+which updates `waycast-bin`.
 
-Do not tag by hand. A tag you push yourself works, but Auto Tag then finds the
-version already tagged and does nothing, so the two paths differ only in who
-gets the blame when something goes wrong.
+Do not tag by hand. A tag you push yourself does release, but Release then has
+two ways in and only one of them is the documented path.
 
 Watch it land:
 
 ```bash
-gh run list --workflow "Auto Tag" --limit 1
+gh run list --workflow "Release" --limit 1
 gh release view "v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
 ```
 
@@ -186,7 +185,7 @@ gh release view "v$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
 | Mistake | Why it's wrong | Fix |
 |---------|---------------|-----|
 | Manually editing CHANGELOG.md | git-cliff generates it from conventional commits | Use `just update-changelog` |
-| Creating git tags manually | Auto Tag already tags the version in Cargo.toml | Merge the bump and let it tag |
+| Creating git tags manually | Release already tags the version in Cargo.toml | Merge the bump and let it tag |
 | Bumping Cargo.toml without `Cargo.lock` | Release builds `--locked` and fails after the tag exists, leaving a tag with no release | `just update-version`, which runs `cargo update --workspace` |
 | Releasing from a feature branch | Changelog generation needs main commit IDs | Checkout main first |
 | Releasing with dirty working tree | Script will fail or produce incomplete release | Commit or stash changes first |

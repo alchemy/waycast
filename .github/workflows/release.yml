@@ -1,7 +1,17 @@
 # Release Workflow
 #
-# Builds waycast for amd64 and arm64 on tag push and attaches the archives
-# to a GitHub Release.
+# Cuts a release: tags the version in Cargo.toml, builds waycast for amd64 and
+# arm64, and attaches the archives to a GitHub Release.
+#
+# Cargo.toml's version is the source of truth. Push a bump to main and this
+# tags it and releases it; nothing else needs editing.
+#
+# The tagging lives here rather than in a workflow of its own because a tag
+# pushed with GITHUB_TOKEN starts no workflows -- GitHub raises no
+# workflow-triggering events for that token. A separate tagger would therefore
+# need a personal access token to be worth anything, and that expires. Tagging
+# in the same run that publishes needs no credential at all: the run is already
+# here, so nothing has to be triggered.
 #
 # Setup Requirements:
 # 1. No secrets required (GITHUB_TOKEN is auto-provided)
@@ -10,7 +20,9 @@
 #    release. The `permissions:` block below requests it per-job.
 #
 # Workflow Triggers:
-# - Push of a tag matching v[0-9]*
+# - Push to main. Releases when Cargo.toml names a version with no tag yet,
+#   and exits in under a minute when it does not.
+# - Push of a tag matching v[0-9]*, for releasing a tag cut by hand.
 # - Manual dispatch, which builds and uploads artifacts but publishes no
 #   release, so the build can be exercised without tagging.
 #
@@ -21,7 +33,8 @@
 #   tests fail will still publish binaries. That is a deliberate trade for a
 #   simple, predictable trigger; if it matters, gate this on rust.yml the way
 #   aur-publish.yml does, with `on: workflow_run`.
-# - aur-publish.yml chains off rust.yml completing and is unaffected by this.
+# - aur-publish.yml chains off THIS workflow completing, via workflow_run,
+#   which is not subject to the GITHUB_TOKEN restriction above.
 #
 # Notes on what these archives are, and are not:
 # - The binary is dynamically linked against GStreamer, PipeWire and glib.
@@ -39,13 +52,78 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags:
       - v[0-9]*
   workflow_dispatch:
 
 jobs:
+  prepare:
+    name: Decide what to release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.decide.outputs.version }}
+      publish: ${{ steps.decide.outputs.publish }}
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7
+        with:
+          # Tags are needed to tell an already-released version from a new one.
+          fetch-depth: 0
+
+      - name: Decide
+        id: decide
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            # Exercising the build, not releasing.
+            echo "version=$(git describe --tags --always --dirty)" >> "$GITHUB_OUTPUT"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            # A tag cut by hand; release exactly it.
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          if [ -z "$version" ]; then echo "no version in Cargo.toml" >&2; exit 1; fi
+          tag="v${version}"
+          echo "version=${tag}" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "${tag} is already released; nothing to do."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A bump committed without its regenerated Cargo.lock builds here and
+          # fails the --locked build below, which would leave a tag with no
+          # release. `cargo metadata` catches it without compiling anything.
+          if ! cargo metadata --locked --format-version 1 >/dev/null; then
+            echo "Cargo.lock is out of step with Cargo.toml. Commit the lock" >&2
+            echo "alongside the bump: cargo update --workspace" >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${tag}" -m "Release ${version}"
+          git push origin "${tag}"
+          echo "Tagged ${tag}."
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build ${{ matrix.arch }}
+    needs: prepare
+    if: ${{ needs.prepare.outputs.publish == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -84,12 +162,10 @@ jobs:
 
       - name: Package
         id: package
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          version="${GITHUB_REF_NAME}"
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            version="$(git describe --tags --always --dirty)"
-          fi
-          name="waycast-${version}-linux-${{ matrix.arch }}"
+          name="waycast-${VERSION}-linux-${{ matrix.arch }}"
 
           strip target/release/waycast target/release/waycast-networkd
           mkdir -p "dist/${name}/contrib/networkd" "dist/${name}/docs"
@@ -114,8 +190,8 @@ jobs:
 
   release:
     name: Publish release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [prepare, build]
+    if: ${{ needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -135,13 +211,16 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+          # Not GITHUB_REF_NAME: on a push to main that is "main", which would
+          # name the release and its install instructions after the branch.
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           notes="$(mktemp)"
           {
             echo "## Install"
             echo
             echo '```bash'
-            echo "tar xzf waycast-${GITHUB_REF_NAME}-linux-\$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz"
+            echo "tar xzf waycast-${VERSION}-linux-\$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz"
             echo "install -Dm755 waycast-*/waycast ~/.local/bin/waycast"
             echo '(cd waycast-*-linux-* && sudo python3 contrib/networkd/install.py --binary ./waycast-networkd)'
             echo 'waycast doctor'
@@ -150,7 +229,7 @@ jobs:
             echo "Or build from source:"
             echo
             echo '```bash'
-            echo "cargo install --git ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY} --tag ${GITHUB_REF_NAME} waycast-cli --bin waycast --root ~/.local"
+            echo "cargo install --git ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY} --tag ${VERSION} waycast-cli --bin waycast --root ~/.local"
             echo '```'
             echo
             echo "These binaries are dynamically linked and need the GStreamer,"
@@ -158,8 +237,8 @@ jobs:
             echo "2.39 or newer. Run \`waycast doctor\` to check the host."
           } > "$notes"
 
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "${GITHUB_REF_NAME}" \
+          gh release create "${VERSION}" \
+            --title "${VERSION}" \
             --notes-file "$notes" \
             --verify-tag \
             dist/*.tar.gz dist/*.sha256
