@@ -18,6 +18,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Match wpa_supplicant's selected radio interface when it exposes P2P on the radio object instead of a dedicated `p2p-dev-*` object.
 - Provide persistent Wi-Fi Direct PC identity configuration for automatic full-screen sharing on LG webOS, with an Arch Linux systemd service example.
 - Remove unused Rust PipeWire test bindings that broke workspace builds with current system headers; check the GStreamer capture plugin instead.
 - Keep square pixels when scaling captured video to the negotiated mode, preserving desktop proportions with borders instead of anamorphic video.

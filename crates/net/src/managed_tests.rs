@@ -65,7 +65,10 @@ struct MockWpa;
 impl MockWpa {
     #[zbus(property)]
     fn interfaces(&self) -> Vec<zvariant::OwnedObjectPath> {
-        vec!["/wpa/p2p".try_into().unwrap()]
+        vec![
+            "/wpa/unrelated".try_into().unwrap(),
+            "/wpa/p2p".try_into().unwrap(),
+        ]
     }
 }
 struct MockInterface(&'static str);
@@ -79,6 +82,15 @@ impl MockInterface {
 
 #[tokio::test]
 async fn managed_setup_prepares_group_before_waiting_for_ip_and_does_not_miss_early_event() {
+    check_managed_setup("p2p-dev-wlan0").await;
+}
+
+#[tokio::test]
+async fn managed_setup_accepts_supplicant_radio_interface() {
+    check_managed_setup("wlan0").await;
+}
+
+async fn check_managed_setup(supplicant_ifname: &'static str) {
     let mut child = tokio::process::Command::new("dbus-daemon")
         .args(["--session", "--nofork", "--print-address=1"])
         .stdout(std::process::Stdio::piped())
@@ -103,7 +115,9 @@ async fn managed_setup_prepares_group_before_waiting_for_ip_and_does_not_miss_ea
         .unwrap()
         .serve_at("/fi/w1/wpa_supplicant1", MockWpa)
         .unwrap()
-        .serve_at("/wpa/p2p", MockInterface("p2p-dev-wlan0"))
+        .serve_at("/wpa/unrelated", MockInterface("wlan1"))
+        .unwrap()
+        .serve_at("/wpa/p2p", MockInterface(supplicant_ifname))
         .unwrap()
         .serve_at("/wpa/group", MockInterface("p2p-wlan0-0"))
         .unwrap()

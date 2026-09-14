@@ -960,6 +960,7 @@ impl P2pManager {
     async fn find_wpa_p2p_device_path(&self) -> Result<zvariant::OwnedObjectPath, NetError> {
         let wpa = WpaSupplicantProxy::new(&self.connection).await?;
         let expected_ifname = format!("p2p-dev-{}", self.config.interface_name);
+        let mut radio_path = None;
 
         for path in wpa.Interfaces().await? {
             let interface = WpaInterfaceProxy::builder(&self.connection)
@@ -967,9 +968,20 @@ impl P2pManager {
                 .build()
                 .await?;
 
-            if interface.Ifname().await? == expected_ifname {
+            let ifname = interface.Ifname().await?;
+            if ifname == expected_ifname {
                 return Ok(path);
             }
+            // Some supplicant backends expose P2PDevice on the ordinary radio
+            // object, although NetworkManager calls its device p2p-dev-<radio>.
+            // Prefer a dedicated object when present, and never use another radio.
+            if ifname == self.config.interface_name {
+                radio_path = Some(path);
+            }
+        }
+
+        if let Some(path) = radio_path {
+            return Ok(path);
         }
 
         Err(NetError::DeviceNotFound(format!(
