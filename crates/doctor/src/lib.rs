@@ -61,7 +61,7 @@ impl Report {
         println!("Miracast Doctor - Environment Check Report");
         println!("=========================================");
 
-        self.print_check_result("Sway Compositor", &self.sway_result);
+        self.print_check_result("Wayland Compositor", &self.sway_result);
         self.print_check_result("PipeWire", &self.pipewire_result);
         self.print_check_result("GStreamer", &self.gstreamer_result);
         self.print_check_result("NetworkManager", &self.network_manager_result);
