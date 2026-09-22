@@ -1,11 +1,19 @@
 # AUR Publish Workflow
 #
-# Pushes packaging/aur/ to the AUR as waycast-bin whenever a release is
-# published, pinned to the archives that release actually carries.
+# Pushes packaging/aur/<pkgname>/ to the AUR whenever a release is published,
+# once per package:
+#
+#   waycast-bin  the archives that release carries, pinned by their checksums
+#   waycast      the same release compiled from its tag tarball
+#
+# Both are published from the same run so they cannot drift apart: a release
+# that reaches one reaches the other, at the same version.
 #
 # Setup Requirements:
 # 1. An SSH key whose public half is on an AUR account that co-maintains
-#    waycast-bin (AUR accepts several keys, one per line).
+#    both packages (AUR accepts several keys, one per line). A package that
+#    does not exist yet is created by the first push -- cloning it beforehand
+#    gives an empty repository rather than an error.
 # 2. Repository secrets:
 #    - AUR_SSH_PRIVATE_KEY: the private half of that key
 #    - AUR_USERNAME:        name for the AUR commit author
@@ -45,9 +53,15 @@ on:
 
 jobs:
   publish:
-    name: waycast-bin
+    name: ${{ matrix.pkgname }}
     runs-on: ubuntu-latest
     container: archlinux:base-devel
+    strategy:
+      # Independent AUR repositories, so one failing is no reason to abandon
+      # the other -- and knowing which of the two broke is worth a second run.
+      fail-fast: false
+      matrix:
+        pkgname: [waycast-bin, waycast]
 
     steps:
       - name: Install container dependencies
@@ -86,6 +100,7 @@ jobs:
 
       - name: Take the checksums from the published archives
         id: sums
+        if: matrix.pkgname == 'waycast-bin'
         env:
           TAG: ${{ steps.release.outputs.tag }}
         run: |
@@ -111,32 +126,60 @@ jobs:
             echo "arm64=$(fetch_sum "${base}/waycast-${TAG}-linux-arm64.tar.gz.sha256")"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Take the checksum of the tagged source
+        id: srcsum
+        if: matrix.pkgname == 'waycast'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          # GitHub generates this tarball on demand. Pinning its checksum is
+          # still worth doing -- it is what makes the download verifiable --
+          # and CI recomputes it every release, so were GitHub ever to change
+          # how it packs an archive, the next release corrects itself.
+          url="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
+          sum=$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1)
+          if [ -z "$sum" ]; then echo "could not checksum ${url}" >&2; exit 1; fi
+          echo "sha256=${sum}" >> "$GITHUB_OUTPUT"
+
       - name: Render the PKGBUILD for this release
         env:
+          PKGNAME: ${{ matrix.pkgname }}
           PKGVER: ${{ steps.release.outputs.pkgver }}
           SHA_AMD64: ${{ steps.sums.outputs.amd64 }}
           SHA_ARM64: ${{ steps.sums.outputs.arm64 }}
+          SHA_SOURCE: ${{ steps.srcsum.outputs.sha256 }}
         run: |
-          cd packaging/aur
+          cd "packaging/aur/${PKGNAME}"
           # pkgrel counts packaging revisions of one upstream version, so a
           # new pkgver resets it.
           sed -i \
             -e "s/^pkgver=.*/pkgver=${PKGVER}/" \
             -e "s/^pkgrel=.*/pkgrel=1/" \
-            -e "s/^sha256sums_x86_64=.*/sha256sums_x86_64=('${SHA_AMD64}')/" \
-            -e "s/^sha256sums_aarch64=.*/sha256sums_aarch64=('${SHA_ARM64}')/" \
             PKGBUILD
 
-          grep -E '^(pkgver|pkgrel|sha256sums_)' PKGBUILD
+          # One package ships two architectures' archives, the other one
+          # tarball; each has only its own checksum lines to rewrite.
+          if [ "$PKGNAME" = "waycast-bin" ]; then
+            sed -i \
+              -e "s/^sha256sums_x86_64=.*/sha256sums_x86_64=('${SHA_AMD64}')/" \
+              -e "s/^sha256sums_aarch64=.*/sha256sums_aarch64=('${SHA_ARM64}')/" \
+              PKGBUILD
+          else
+            sed -i -e "s/^sha256sums=.*/sha256sums=('${SHA_SOURCE}')/" PKGBUILD
+          fi
+
+          grep -E '^(pkgname|pkgver|pkgrel|sha256sums)' PKGBUILD
 
       - name: Generate .SRCINFO
+        env:
+          PKGNAME: ${{ matrix.pkgname }}
         run: |
           # makepkg refuses to run as root, and the AUR rejects a push whose
           # .SRCINFO disagrees with its PKGBUILD, so this cannot be skipped.
           useradd -m builder
-          chown -R builder packaging/aur
-          su builder -c 'cd packaging/aur && makepkg --printsrcinfo > .SRCINFO'
-          head -5 packaging/aur/.SRCINFO
+          chown -R builder "packaging/aur/${PKGNAME}"
+          su builder -c "cd 'packaging/aur/${PKGNAME}' && makepkg --printsrcinfo > .SRCINFO"
+          head -5 "packaging/aur/${PKGNAME}/.SRCINFO"
 
       - name: Publish to the AUR
         env:
@@ -201,9 +244,12 @@ jobs:
           # identical package, and the AUR rejects empty commits. That is a
           # no-op worth reporting, not a failure.
           if git diff --cached --quiet; then
-            echo "AUR package already matches ${TAG}; nothing to publish."
+            echo "${PKGNAME} already matches ${TAG}; nothing to publish."
             exit 0
           fi
 
-          git commit -m "waycast-bin ${TAG}"
-          git push origin master
+          git commit -m "${PKGNAME} ${TAG}"
+
+          # An empty repository has no master branch until this creates one;
+          # HEAD:master works for the first push and every later one alike.
+          git push origin HEAD:master
