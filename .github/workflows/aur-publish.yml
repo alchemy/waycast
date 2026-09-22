@@ -89,14 +89,24 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "pkgver=${tag#v}" >> "$GITHUB_OUTPUT"
 
-      # Explicitly the tag. A called workflow checks out the caller's ref,
-      # which for the usual path is main -- so without this it would package
-      # whatever main holds now rather than what was released, and those
-      # differ the moment anything lands after the bump.
-      - name: Checkout the tagged sources
+      # The packaging templates, which are a property of the default branch
+      # rather than of any tag.
+      #
+      # This used to check out the tag, on the reasoning that a release should
+      # be packaged as it was released. But nothing here reads the release's
+      # own sources -- both checksums come from URLs -- so the only thing the
+      # tag supplied was packaging/aur itself, frozen as of that tag. That
+      # contradicted this workflow's own documented second use, re-publishing
+      # packaging changes against an existing tag: the changes could never be
+      # picked up. It also broke the moment packaging/aur was reorganised,
+      # since an older tag has no such directory.
+      #
+      # The version still comes from the tag. Only the templates come from
+      # here.
+      - name: Checkout the packaging templates
         uses: actions/checkout@v7
         with:
-          ref: ${{ steps.release.outputs.tag }}
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Take the checksums from the published archives
         id: sums
