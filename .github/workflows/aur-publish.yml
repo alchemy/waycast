@@ -197,6 +197,7 @@ jobs:
           AUR_USERNAME: ${{ secrets.AUR_USERNAME }}
           AUR_EMAIL: ${{ secrets.AUR_EMAIL }}
           TAG: ${{ steps.release.outputs.tag }}
+          PKGNAME: ${{ matrix.pkgname }}
         run: |
           # Absolute paths throughout, and handed to ssh explicitly.
           #
@@ -242,8 +243,14 @@ jobs:
           # depends on which home directory it decides to use.
           export GIT_SSH_COMMAND="ssh -i ${ssh_dir}/aur -o IdentitiesOnly=yes -o UserKnownHostsFile=${ssh_dir}/known_hosts -o StrictHostKeyChecking=yes"
 
-          git clone ssh://aur@aur.archlinux.org/waycast-bin.git aur-repo
-          cp packaging/aur/PKGBUILD packaging/aur/.SRCINFO packaging/aur/waycast.install aur-repo/
+          # A package the AUR does not have yet clones as an empty repository
+          # rather than failing, and the first push creates it -- which is how
+          # a new package is published, and why this needs no special case.
+          git clone "ssh://aur@aur.archlinux.org/${PKGNAME}.git" aur-repo
+          cp "packaging/aur/${PKGNAME}/PKGBUILD" \
+             "packaging/aur/${PKGNAME}/.SRCINFO" \
+             "packaging/aur/${PKGNAME}/waycast.install" \
+             aur-repo/
 
           cd aur-repo
           git config user.name "$AUR_USERNAME"
