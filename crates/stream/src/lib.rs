@@ -278,6 +278,17 @@ fn use_stream_clock(pipeline: &gst::Pipeline) {
     pipeline.use_clock(Some(&gst::SystemClock::obtain()));
 }
 
+// Explicit capture correction for compositors exposing unrotated native buffers.
+// An allow-list keeps the value out of GStreamer's pipeline grammar.
+fn capture_direction(value: Option<&str>) -> &'static str {
+    match value {
+        Some("90r") => "90r",
+        Some("180") => "180",
+        Some("90l") => "90l",
+        _ => "identity",
+    }
+}
+
 // CEA modes describe square-pixel video. Without this constraint videoscale
 // can preserve the capture's aspect ratio by changing pixel shape instead
 // of adding borders, leaving the encoded display geometry unlike M4.
@@ -286,6 +297,37 @@ fn video_geometry_caps(config: &StreamConfig) -> String {
         "video/x-raw,width={},height={},framerate={}/1,pixel-aspect-ratio=1/1",
         config.video_width, config.video_height, config.video_framerate
     )
+}
+
+// Keep rotation/scaling before the frame repeater, and VA surfaces on the GPU.
+fn pipewire_video_processing(
+    config: &StreamConfig,
+    direction: &str,
+    use_va: bool,
+) -> (String, String, &'static str) {
+    if use_va {
+        let stages = format!(
+            "video/x-raw(ANY),pixel-aspect-ratio=1/1 \
+             ! vapostproc disable-passthrough=true add-borders=true video-direction={} \
+             ! video/x-raw(memory:VAMemory),format=NV12,width={},height={},pixel-aspect-ratio=1/1",
+            direction, config.video_width, config.video_height
+        );
+        let geometry = video_geometry_caps(config).replacen(
+            "video/x-raw",
+            "video/x-raw(memory:VAMemory),format=NV12",
+            1,
+        );
+        (stages, geometry, "false")
+    } else {
+        (
+            format!(
+                "videoconvert ! videoflip video-direction={} ! videoscale",
+                direction
+            ),
+            video_geometry_caps(config),
+            "true",
+        )
+    }
 }
 
 /// GStreamer pipeline wrapper for Miracast streaming
@@ -626,12 +668,20 @@ impl StreamPipelineInner {
         // diverge whenever a sink's best offer is below the virtual output --
         // constraining only the framerate there would send a 1080p stream to a
         // sink that had just been promised 720p.
+        let direction =
+            capture_direction(std::env::var("WAYCAST_CAPTURE_DIRECTION").ok().as_deref());
+        let use_va = matches!(
+            config.video_codec,
+            VideoCodec::H264Hardware | VideoCodec::H265Hardware
+        ) && gst::ElementFactory::find("vapostproc").is_some();
+        let (preprocess, geometry, copy_buffers) =
+            pipewire_video_processing(&config, direction, use_va);
         let video_branch = format!(
-            "pipewiresrc name=videosrc fd={} path={} keepalive-time=1000 always-copy=true do-timestamp=true \
-             ! videoconvert \
-             ! videoscale \
+            "pipewiresrc name=videosrc fd={} path={} keepalive-time=1000 always-copy={} do-timestamp=true \
+             ! {} \
              ! imagefreeze name=framerepeat allow-replace=true is-live=true \
              ! {} \
+             ! queue max-size-buffers=1 max-size-bytes=0 max-size-time=0 leaky=downstream \
              ! {} name=enc {} \
              ! {} name=parser config-interval=-1 \
              ! {} \
@@ -639,7 +689,9 @@ impl StreamPipelineInner {
              ! mux.{}",
             fd,
             node_id,
-            video_geometry_caps(&config),
+            copy_buffers,
+            preprocess,
+            geometry,
             config.video_codec.gstreamer_encoder(),
             encoder_props,
             config.video_codec.parser(),
@@ -1397,5 +1449,62 @@ mod transport_tests {
         .await
         .expect("RTCP receiver report reached rtpbin");
         stream.stop().await.unwrap();
+    }
+}
+
+#[cfg(test)]
+mod capture_direction_tests {
+    use super::capture_direction;
+    #[test]
+    fn only_accepts_supported_directions() {
+        for direction in ["90r", "180", "90l"] {
+            assert_eq!(capture_direction(Some(direction)), direction);
+        }
+        for value in [None, Some(""), Some("identity"), Some("90l ! fakesink")] {
+            assert_eq!(capture_direction(value), "identity");
+        }
+    }
+}
+
+#[cfg(test)]
+mod rotated_capture_tests {
+    use super::*;
+    #[test]
+    fn va_processing_does_not_download_frames_for_rotation() {
+        let config = StreamConfig::default();
+        let (stages, caps, copy) = pipewire_video_processing(&config, "90l", true);
+        assert!(stages.contains("video-direction=90l"));
+        assert!(stages.contains("disable-passthrough=true"));
+        assert!(caps.contains("memory:VAMemory"));
+        assert_eq!(copy, "false");
+        for stage in ["videoconvert", "videoflip", "videoscale"] {
+            assert!(!stages.contains(stage));
+        }
+    }
+    #[test]
+    fn software_rotation_preserves_output_geometry_and_square_pixels() {
+        gst::init().unwrap();
+        let config = StreamConfig {
+            video_width: 64,
+            video_height: 36,
+            ..StreamConfig::default()
+        };
+        for direction in ["identity", "90l", "180", "90r"] {
+            let (stages, caps, copy) = pipewire_video_processing(&config, direction, false);
+            assert_eq!(copy, "true");
+            let pipeline = gst::parse::launch(&format!("videotestsrc num-buffers=1 ! video/x-raw,width=36,height=64 ! {stages} ! imagefreeze num-buffers=1 ! {caps} ! appsink name=output")).unwrap().downcast::<gst::Pipeline>().unwrap();
+            let sink = pipeline
+                .by_name("output")
+                .unwrap()
+                .downcast::<gstreamer_app::AppSink>()
+                .unwrap();
+            pipeline.set_state(gst::State::Playing).unwrap();
+            let sample = sink.try_pull_sample(gst::ClockTime::from_seconds(5));
+            pipeline.set_state(gst::State::Null).unwrap();
+            let sample = sample.expect("rotated software capture must produce a frame");
+            let info = gstreamer_video::VideoInfo::from_caps(sample.caps().unwrap()).unwrap();
+            assert_eq!((info.width(), info.height()), (64, 36));
+            assert_eq!(info.par(), gst::Fraction::new(1, 1));
+        }
     }
 }

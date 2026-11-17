@@ -506,3 +506,16 @@ privilege boundary and session cleanup behavior.
 ## License
 
 MIT
+
+### Capture buffers from rotated displays
+
+If a compositor exposes native, unrotated portrait buffers, set
+`WAYCAST_CAPTURE_DIRECTION` to `90r`, `180`, or `90l` to correct them before
+encoding. The default is `identity`; unknown values also use identity. This
+is an explicit capture correction, not automatic monitor detection: leave it
+unset when the compositor already delivers upright frames.
+
+VA-API encoding uses `vapostproc` for conversion, rotation and scaling and keeps
+frames in VA memory. Without that postprocessor the software path remains
+available. Only raw frames may be dropped before encoding when the encoder
+falls behind; encoded frames are not discarded by that queue.
